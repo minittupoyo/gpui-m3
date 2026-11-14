@@ -101,6 +101,8 @@ struct Gallery {
     side_open: bool,
     side_modal_open: bool,
     full_open: bool,
+    search_field: Entity<TextField>,
+    search_open: bool,
 }
 
 impl Gallery {
@@ -245,6 +247,8 @@ impl Gallery {
             side_open: true,
             side_modal_open: false,
             full_open: false,
+            search_field: m3::search_field(window, cx, "アルバムやアーティストを検索"),
+            search_open: false,
             page: std::env::var("M3_PAGE").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
             toggles: [false, true, false, true, false],
             favorite: [true, false, true, false],
@@ -269,6 +273,20 @@ impl Gallery {
     }
 
     /// 値を受け取って状態を更新するハンドラを作る
+    fn set_click(
+        cx: &mut Context<Self>,
+        f: impl Fn(&mut Self) + 'static,
+    ) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static {
+        let this = cx.entity().downgrade();
+        move |_, _, cx| {
+            this.update(cx, |g, cx| {
+                f(g);
+                cx.notify();
+            })
+            .ok();
+        }
+    }
+
     fn set<V: 'static>(
         cx: &mut Context<Self>,
         f: impl Fn(&mut Self, V) + 'static,
@@ -2076,6 +2094,57 @@ impl Gallery {
                 "Rich tooltip",
                 "ホバーで表示。中のボタンを押せる（hoverable_tooltip）",
                 rich,
+            )
+            .into_any_element(),
+        );
+
+        // ----- Search bar / Search view -----
+        let query = self.search_field.read(cx).text().to_string();
+        let words = ["Aurora", "Blue Hour", "Cascade", "Daybreak", "Echoes", "Firefly"];
+        let hits: Vec<&str> = words
+            .iter()
+            .copied()
+            .filter(|w| query.is_empty() || w.to_lowercase().contains(&query.to_lowercase()))
+            .collect();
+        let search_body: AnyElement = if self.search_open {
+            let field = self.search_field.clone();
+            let mut view = m3::SearchView::new("sv", self.search_field.clone())
+                .max_height(360.)
+                .on_back(Self::set_click(cx, |g| g.search_open = false));
+            for (i, w) in hits.iter().enumerate() {
+                let f = field.clone();
+                let name = w.to_string();
+                view = view.child(
+                    ListItem::new(format!("sv-{i}"), *w)
+                        .leading(Icon::new(if query.is_empty() { IconName::History } else { IconName::Search }).color(c.on_surface_variant))
+                        .on_click(move |_, _, cx| {
+                            f.update(cx, |f, cx| f.set_text(name.clone(), cx));
+                        }),
+                );
+            }
+            view.into_any_element()
+        } else {
+            m3::SearchBar::new("sb", self.search_field.clone())
+                .trailing(IconButton::new("sb-mic", IconName::Mic))
+                .trailing(IconButton::new("sb-menu", IconName::MoreVert))
+                .into_any_element()
+        };
+        let open_btn = Self::set_click(cx, |g| g.search_open = true);
+        out.push(
+            section(
+                cx,
+                "Search bar / Search view",
+                "バーをクリックして入力 → フォーカスでビューに展開（ここでは「開く」ボタンで切替）",
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(16.))
+                    .child(search_body)
+                    .child(
+                        Button::new("sv-toggle", if self.search_open { "ビューを開いている" } else { "ビューを開く" })
+                            .tonal()
+                            .on_click(move |e, w, cx| open_btn(e, w, cx)),
+                    ),
             )
             .into_any_element(),
         );

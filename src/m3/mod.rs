@@ -23,6 +23,7 @@ mod navigation;
 mod overlays;
 mod progress;
 mod ripple;
+mod search;
 mod selection;
 mod sheet;
 mod slider;
@@ -50,6 +51,7 @@ pub use overlays::*;
 pub use progress::*;
 #[allow(unused_imports)]
 pub(crate) use ripple::*;
+pub use search::*;
 pub use selection::*;
 pub use sheet::*;
 pub use slider::*;

@@ -53,6 +53,12 @@ pub enum IconName {
     KeyboardArrowDown,
     Palette,
     MenuOpen,
+    Mic,
+    History,
+    CalendarMonth,
+    Schedule,
+    Keyboard,
+    ChevronLeft,
 }
 
 impl IconName {
@@ -104,6 +110,12 @@ impl IconName {
             KeyboardArrowDown => "keyboard_arrow_down",
             Palette => "palette",
             MenuOpen => "menu_open",
+            Mic => "mic",
+            History => "history",
+            CalendarMonth => "calendar_month",
+            Schedule => "schedule",
+            Keyboard => "keyboard",
+            ChevronLeft => "chevron_left",
         }
     }
 
@@ -114,6 +126,12 @@ impl IconName {
 
 fn svg_body(name: &str) -> Option<&'static str> {
     Some(match name {
+        "mic" => r#"<path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>"#,
+        "history" => r#"<path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>"#,
+        "calendar_month" => r#"<path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>"#,
+        "schedule" => r#"<path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>"#,
+        "keyboard" => r#"<path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/>"#,
+        "chevron_left" => r#"<path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>"#,
         "add" => r#"<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>"#,
         "arrow_back" => r#"<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>"#,
         "check" => r#"<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>"#,
