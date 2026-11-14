@@ -413,6 +413,24 @@ impl Gallery {
     fn page_buttons(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let mut out = vec![];
 
+        // 密度（全ページに反映される）
+        let current = cx.m3().density;
+        let mut density = ConnectedButtonGroup::new("density")
+            .selected(m3::Density::ALL.iter().map(|d| *d == current).collect())
+            .on_toggle(|i, _, cx| m3::set_density(cx, m3::Density::ALL[i]));
+        for d in m3::Density::ALL {
+            density = density.item(ButtonGroupItem::new(d.name()));
+        }
+        out.push(
+            section(
+                cx,
+                "Density",
+                "段ごとに高さが 4dp 縮む。ボタン・チップ・タブ・リスト・メニュー・テキスト欄など、全ページに反映される",
+                density,
+            )
+            .into_any_element(),
+        );
+
         // バリアント
         let mut variants = wrap_row();
         for v in ButtonVariant::ALL {

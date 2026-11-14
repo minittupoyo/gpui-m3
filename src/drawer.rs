@@ -161,7 +161,7 @@ impl RenderOnce for NavigationDrawer {
                     let mut row = div()
                         .id(ElementId::Name(format!("{id}::item{n}").into()))
                         .flex_none()
-                        .h(px(56.))
+                        .h(theme.density.shrink_by(px(56.), 4., 40.))
                         .flex()
                         .items_center()
                         .gap(px(12.))

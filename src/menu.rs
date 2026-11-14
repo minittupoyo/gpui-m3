@@ -292,7 +292,7 @@ impl RenderOnce for Menu {
                         .flex()
                         .items_center()
                         .gap(px(12.))
-                        .min_h(px(44.))
+                        .min_h(theme.density.shrink_by(px(44.), 4., 32.))
                         .px(px(12.))
                         .py(px(8.))
                         .rounded(shape::MEDIUM)

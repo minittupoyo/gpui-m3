@@ -109,7 +109,12 @@ impl RenderOnce for Tabs {
 
         let primary = self.variant == TabsVariant::Primary;
         let has_icons = self.tabs.iter().any(|t| t.icon.is_some());
-        let height = if primary && has_icons { 64. } else { 48. };
+        let height =
+            f32::from(
+                theme
+                    .density
+                    .shrink(px(if primary && has_icons { 64. } else { 48. })),
+            );
         let layer = c.on_surface.opacity(state::HOVER);
 
         let scrollable = self.scrollable;

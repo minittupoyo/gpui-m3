@@ -524,6 +524,58 @@ pub fn elevation(level: u8, color: Hsla) -> Vec<BoxShadow> {
     }
 }
 
+/// コンポーネントの密度。段ごとにタッチターゲットの高さが 4dp 縮む（Material 3 の Density 0 / -1 / -2 / -3）。
+///
+/// 画面に多くの情報を載せたいデスクトップ向けの設定で、`set_density` でアプリ全体に反映する。
+/// 対象は、ボタン（XS〜M）、アイコンボタン（XS〜M）、チップ、タブ、リスト項目、メニュー項目、
+/// ドロワー項目、テキスト欄（段ごとに 2dp）。大きなボタンやナビゲーションバーなどは変わらない。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Density {
+    /// 標準（0）
+    #[default]
+    Default,
+    /// やや詰める（-1、4dp 縮む）
+    Comfortable,
+    /// 詰める（-2、8dp 縮む）
+    Compact,
+    /// 最も詰める（-3、12dp 縮む）
+    Dense,
+}
+
+impl Density {
+    pub const ALL: [Density; 4] = [Self::Default, Self::Comfortable, Self::Compact, Self::Dense];
+
+    /// 段数（0〜3）
+    pub fn steps(self) -> u32 {
+        match self {
+            Self::Default => 0,
+            Self::Comfortable => 1,
+            Self::Compact => 2,
+            Self::Dense => 3,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Default => "標準 (0)",
+            Self::Comfortable => "やや密 (-1)",
+            Self::Compact => "密 (-2)",
+            Self::Dense => "最密 (-3)",
+        }
+    }
+
+    /// 高さ `base` を、段数 × 4dp だけ縮める（24dp を下回らない）
+    pub fn shrink(self, base: Pixels) -> Pixels {
+        self.shrink_by(base, 4., 24.)
+    }
+
+    /// 高さ `base` を、段数 × `per_step`dp だけ縮める（`min`dp を下回らない）
+    pub fn shrink_by(self, base: Pixels, per_step: f32, min: f32) -> Pixels {
+        let shrunk = f32::from(base) - per_step * self.steps() as f32;
+        px(shrunk.max(min.min(f32::from(base))))
+    }
+}
+
 /// 小数のエレベーション（隣り合うレベルの影を線形補間する。ホバーのアニメーション用）
 pub fn elevation_f(level: f32, color: Hsla) -> Vec<BoxShadow> {
     // 各レベルの (y, blur, spread, alpha) × 2 層
@@ -567,6 +619,8 @@ pub struct Theme {
     pub colors: ColorScheme,
     pub motion: Motion,
     pub font_family: &'static str,
+    /// コンポーネントの密度（高さの詰め具合）
+    pub density: Density,
     /// None ならベースライン（#6750A4）の固定スキーム
     pub dynamic: Option<DynamicColorConfig>,
 }
@@ -589,6 +643,7 @@ impl Theme {
             colors,
             motion: Motion::new(MotionScheme::Expressive),
             font_family: super::ROBOTO_FLEX_FAMILY,
+            density: Density::Default,
             dynamic,
         }
     }
@@ -682,6 +737,32 @@ mod tests {
         assert!(d.is_dark() && !l.is_dark());
         assert_ne!(d.colors.surface, l.colors.surface);
         assert_eq!(d.font_family, super::super::ROBOTO_FLEX_FAMILY);
+    }
+
+    #[test]
+    fn density_shrinks_by_four_per_step_and_respects_the_floor() {
+        let base = px(40.);
+        let heights: Vec<f32> = Density::ALL
+            .iter()
+            .map(|d| f32::from(d.shrink(base)))
+            .collect();
+        assert_eq!(heights, vec![40., 36., 32., 28.]);
+        // 24dp を下回らない
+        assert_eq!(f32::from(Density::Dense.shrink(px(32.))), 24.);
+        // 基準が下限より小さいときは、基準より大きくならない
+        assert_eq!(f32::from(Density::Dense.shrink(px(20.))), 20.);
+        // 下限を指定できる
+        assert_eq!(f32::from(Density::Dense.shrink_by(px(56.), 4., 48.)), 48.);
+    }
+
+    #[test]
+    fn density_defaults_to_the_standard_size() {
+        assert_eq!(Density::default(), Density::Default);
+        assert_eq!(Density::Default.steps(), 0);
+        assert_eq!(f32::from(Density::Default.shrink(px(40.))), 40.);
+        assert_eq!(Theme::new(Brightness::Dark).density, Density::Default);
+        let steps: Vec<u32> = Density::ALL.iter().map(|d| d.steps()).collect();
+        assert_eq!(steps, vec![0, 1, 2, 3]);
     }
 
     #[test]

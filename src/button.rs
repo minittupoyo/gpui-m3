@@ -285,7 +285,14 @@ pub(crate) fn resolve_round(shape: ButtonShape, selected: Option<bool>) -> bool 
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
-        let m = button_metrics(self.size);
+        let mut m = button_metrics(self.size);
+        // 密度: 小〜中のボタンだけ詰める
+        if matches!(
+            self.size,
+            ComponentSize::XSmall | ComponentSize::Small | ComponentSize::Medium
+        ) {
+            m.height = theme.density.shrink(m.height);
+        }
         let colors = button_colors(&theme, self.variant, self.selected, self.disabled);
         let pressed_state = use_pressed(&self.id, window, cx);
         let pressed = *pressed_state.read(cx) && !self.disabled;

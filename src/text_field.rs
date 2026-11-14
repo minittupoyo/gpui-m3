@@ -1793,7 +1793,9 @@ impl Render for TextField {
             16.
         };
         let floating = focused || has_text;
-        let text_top = if has_label && !outlined { 24. } else { 16. };
+        // 密度: 上下の余白を段ごとに 1dp ずつ詰める（高さは 2dp ずつ縮む）
+        let dens = theme.density.steps() as f32;
+        let text_top = if has_label && !outlined { 24. } else { 16. } - dens;
 
         // テキスト行
         let multiline = self.multiline.is_some();
@@ -1831,9 +1833,9 @@ impl Render for TextField {
             .id(eid("container"))
             .relative()
             .h(px(if multiline {
-                text_top + text_h + 16.
+                text_top + text_h + 16. - dens
             } else {
-                56.
+                56. - 2. * dens
             }))
             .w_full()
             .bg(container_bg)
@@ -1894,7 +1896,7 @@ impl Render for TextField {
                 .as_ref()
                 .map(|f| f(&c))
                 .unwrap_or(c.surface);
-            let float_top = if outlined { -8. } else { 8. };
+            let float_top = if outlined { -8. } else { 8. - dens };
             let float_left = if outlined { 12. } else { text_left };
             let rest_left = text_left - if outlined { 4. } else { 0. };
             let mut label_el = div()
@@ -1911,7 +1913,7 @@ impl Render for TextField {
                 move |el, t| {
                     let t = t.clamp(-0.1, 1.1);
                     let el = el
-                        .top(px(lerp(16., float_top, t)))
+                        .top(px(lerp(16. - dens, float_top, t)))
                         .left(px(lerp(rest_left, float_left, t.clamp(0., 1.))))
                         .text_size(px(lerp(16., 12., t)))
                         .line_height(px(lerp(24., 16., t)));
@@ -1930,7 +1932,7 @@ impl Render for TextField {
                 div()
                     .absolute()
                     .left(px(12.))
-                    .top(px(16.))
+                    .top(px(16. - dens))
                     .child(Icon::new(icon).size(px(24.)).color(icon_color)),
             );
         }
@@ -1949,7 +1951,7 @@ impl Render for TextField {
         let mut trailing = div()
             .absolute()
             .right(px(4.))
-            .top(px(8.))
+            .top(px(8. - dens))
             .flex()
             .items_center();
         if self.clearable && has_text && !disabled {

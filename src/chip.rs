@@ -126,7 +126,7 @@ impl RenderOnce for Chip {
             .flex_none()
             .items_center()
             .gap(px(8.))
-            .h(px(32.))
+            .h(theme.density.shrink(px(32.)))
             .pl(if leading.is_some() { px(8.) } else { px(16.) })
             .pr(if has_trailing { px(8.) } else { px(16.) })
             .rounded(shape::SMALL)

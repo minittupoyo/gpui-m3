@@ -467,7 +467,11 @@ impl RenderOnce for ListItem {
             .gap(px(16.))
             .px(px(16.))
             .py(px(8.))
-            .min_h(px(if self.supporting.is_some() { 72. } else { 56. }));
+            .min_h(theme.density.shrink_by(
+                px(if self.supporting.is_some() { 72. } else { 56. }),
+                4.,
+                40.,
+            ));
         if let Some(r) = ripple.as_ref() {
             el = el.child(ripple_overlay(r, fg, gpui::Corners::all(px(0.))));
             el = track_ripple(el, r);

@@ -184,8 +184,17 @@ impl IconButton {
 impl RenderOnce for IconButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
-        let m = button_metrics(self.size);
-        let (w, icon_size) = icon_button_size(self.size, self.width);
+        let mut m = button_metrics(self.size);
+        let (mut w, icon_size) = icon_button_size(self.size, self.width);
+        // 密度: 小〜中のボタンだけ詰める（幅も同じだけ縮める）
+        if matches!(
+            self.size,
+            ComponentSize::XSmall | ComponentSize::Small | ComponentSize::Medium
+        ) {
+            let h0 = m.height;
+            m.height = theme.density.shrink(h0);
+            w = (w - (h0 - m.height)).max(m.height);
+        }
         let (bg, fg, border) =
             icon_button_colors(&theme, self.variant, self.selected, self.disabled);
 

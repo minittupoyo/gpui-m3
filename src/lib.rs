@@ -42,6 +42,8 @@
 //!
 //! [`Theme`] はグローバルに保持されます。[`set_brightness`] で明暗、[`set_dynamic_color`] で
 //! シード色からの動的カラーを切り替え、`cx.m3()`（[`ActiveTheme`]）で現在のテーマを読めます。
+//! [`set_density`] で密度（[`Density`]）を切り替えると、ボタン・チップ・リスト・テキスト欄などの高さが
+//! 段ごとに詰まります。
 //! フォントは既定で同梱の Roboto Flex（[`ROBOTO_FLEX_FAMILY`]）です。
 //!
 //! ## サンプル
@@ -158,6 +160,16 @@ pub fn set_brightness(cx: &mut App, brightness: Brightness) {
 }
 
 /// Dynamic color を設定する（None でベースラインの固定スキームに戻す）
+/// コンポーネントの密度を切り替える（全ウィンドウに反映される）
+pub fn set_density(cx: &mut App, density: Density) {
+    let mut theme = cx.m3().clone();
+    if theme.density != density {
+        theme.density = density;
+        cx.set_global(theme);
+        cx.refresh_windows();
+    }
+}
+
 pub fn set_dynamic_color(cx: &mut App, config: Option<DynamicColorConfig>) {
     let brightness = cx.m3().brightness;
     rebuild_theme(cx, brightness, config);
@@ -168,6 +180,7 @@ fn rebuild_theme(cx: &mut App, brightness: Brightness, dynamic: Option<DynamicCo
     let mut theme = Theme::with_dynamic(brightness, dynamic);
     theme.motion = old.motion;
     theme.font_family = old.font_family;
+    theme.density = old.density;
     cx.set_global(theme);
     cx.refresh_windows();
 }

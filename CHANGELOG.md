@@ -14,6 +14,7 @@
 - ホバー時の影のアニメーション（`Button`・`Card`・`Fab`）
 - Roboto Flex の同梱（既定フォント）
 - `Icon::filled` と `IconName::ALL`。選択中のナビゲーション・ツールバー・アイコンボタンは塗りつぶしアイコンになる
+- 密度の設定（`Density`、`set_density`、`Theme::density`）
 - `tools/gen_symbols.py`（Material Symbols のパスデータを取得して `src/symbols.rs` を生成する）
 - 動的カラー（シード色から生成）
 
