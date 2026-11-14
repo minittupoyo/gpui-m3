@@ -326,13 +326,17 @@ impl RenderOnce for CircularProgress {
                     arc(window, 0., v, active, wavy, 0.);
                 }
                 None => {
-                    // 伸び縮みしながら回転する弧
-                    let (tail, head) = indeterminate_segments(t)[0];
-                    let rot = t * TAU * 1.5;
-                    let sweep_from = tail * 0.9;
-                    let sweep_to = (head * 0.9).max(sweep_from + 0.03);
-                    arc(window, sweep_to + gap, sweep_from + 1. - gap, track, false, rot);
-                    arc(window, sweep_from, sweep_to, active, wavy, rot);
+                    // 伸び縮みしながら回転する弧。
+                    // 一周（t: 0→1）で「弧の長さ」も「中心角」も元に戻る（中心は整数周）ので、
+                    // ループの継ぎ目で飛ばない。
+                    const MIN_LEN: f32 = 0.04;
+                    const MAX_LEN: f32 = 0.70;
+                    const TURNS: f32 = 2.;
+                    let len = MIN_LEN + (MAX_LEN - MIN_LEN) * (0.5 - 0.5 * (TAU * t).cos());
+                    let mid = TURNS * t;
+                    let (from, to) = (mid - len / 2., mid + len / 2.);
+                    arc(window, to + gap, from + 1. - gap, track, false, 0.);
+                    arc(window, from, to, active, wavy, 0.);
                 }
             }
         };
