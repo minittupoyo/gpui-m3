@@ -376,7 +376,7 @@ impl Render for RichTooltip {
     }
 }
 
-/// `.hoverable_tooltip(m3::rich_tooltip(..))` のように使う
+/// `.hoverable_tooltip(gpui_m3::rich_tooltip(..))` のように使う
 pub fn rich_tooltip(
     title: Option<&'static str>,
     text: impl Into<SharedString>,

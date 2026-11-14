@@ -73,7 +73,7 @@ macro_rules! sec {
     };
 }
 
-/// キーバインドを登録する（`m3::init` から呼ばれる）
+/// キーバインドを登録する（`gpui_m3::init` から呼ばれる）
 pub(crate) fn bind_text_field_keys(cx: &mut App) {
     let c = Some(CONTEXT);
 

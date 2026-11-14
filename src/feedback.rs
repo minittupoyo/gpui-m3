@@ -104,7 +104,7 @@ impl Render for PlainTooltip {
     }
 }
 
-/// `.tooltip(m3::tooltip("説明"))` のように使う
+/// `.tooltip(gpui_m3::tooltip("説明"))` のように使う
 pub fn tooltip(text: impl Into<SharedString>) -> impl Fn(&mut Window, &mut App) -> AnyView {
     let text = text.into();
     move |_, cx| {

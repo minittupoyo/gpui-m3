@@ -1745,7 +1745,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpui-test"
+name = "gpui-m3"
 version = "0.1.0"
 dependencies = [
  "anyhow",

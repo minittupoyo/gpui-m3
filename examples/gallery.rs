@@ -11,7 +11,7 @@ use gpui::{
     WindowOptions, div, linear_color_stop, linear_gradient, prelude::*, px, size,
 };
 use gpui_platform::application;
-use gpui_test::m3::{self, *};
+use gpui_m3::{self as m3, *};
 
 const PAGES: [(&str, IconName); 11] = [
     ("Buttons", IconName::Home),
