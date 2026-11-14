@@ -1221,3 +1221,104 @@ fn transparent_c() -> Hsla {
 
 #[allow(dead_code)]
 fn _unused(_: Icon) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn weekday_known_dates() {
+        assert_eq!(weekday(1970, 1, 1), 4); // 木
+        assert_eq!(weekday(2000, 1, 1), 6); // 土
+        assert_eq!(weekday(2026, 11, 14), 6); // 土
+        assert_eq!(weekday(2024, 2, 29), 4); // 木
+    }
+
+    #[test]
+    fn month_lengths_and_leap_years() {
+        assert_eq!(days_in_month(2024, 2), 29);
+        assert_eq!(days_in_month(2023, 2), 28);
+        assert_eq!(days_in_month(2100, 2), 28); // 100 の倍数は平年
+        assert_eq!(days_in_month(2000, 2), 29); // 400 の倍数は閏年
+        assert_eq!(days_in_month(2026, 4), 30);
+        assert_eq!(days_in_month(2026, 12), 31);
+    }
+
+    #[test]
+    fn shifting_months_wraps_years() {
+        assert_eq!(shift_month(2026, 1, -1), (2025, 12));
+        assert_eq!(shift_month(2026, 12, 1), (2027, 1));
+        assert_eq!(shift_month(2026, 6, 0), (2026, 6));
+        assert_eq!(shift_month(2026, 3, -15), (2024, 12));
+    }
+
+    #[test]
+    fn parse_date_accepts_common_formats() {
+        let want = Some(Date::new(2026, 11, 14));
+        assert_eq!(parse_date("2026/11/14"), want);
+        assert_eq!(parse_date("2026-11-14"), want);
+        assert_eq!(parse_date("2026.11.14"), want);
+        assert_eq!(parse_date("2026年11月14日"), want);
+        assert_eq!(parse_date("  2026/1/5 "), Some(Date::new(2026, 1, 5)));
+    }
+
+    #[test]
+    fn parse_date_rejects_invalid_input() {
+        assert_eq!(parse_date(""), None);
+        assert_eq!(parse_date("2027/2/30"), None);
+        assert_eq!(parse_date("2026/13/1"), None);
+        assert_eq!(parse_date("2026/0/1"), None);
+        assert_eq!(parse_date("2026/1/0"), None);
+        assert_eq!(parse_date("26/1/1"), None); // 年は 4 桁
+        assert_eq!(parse_date("2026/1"), None);
+        assert_eq!(parse_date("2026/1/1/1"), None);
+        assert_eq!(parse_date("2023/2/29"), None);
+        assert_eq!(parse_date("2024/2/29"), Some(Date::new(2024, 2, 29)));
+    }
+
+    #[test]
+    fn format_round_trips_through_parse() {
+        let d = Date::new(2026, 3, 9);
+        assert_eq!(d.format_input(), "2026/03/09");
+        assert_eq!(parse_date(&d.format_input()), Some(d));
+    }
+
+    #[test]
+    fn range_pick_flow() {
+        let a = Date::new(2026, 11, 10);
+        let b = Date::new(2026, 11, 17);
+        let r = DateRange::default().pick(a);
+        assert_eq!(r, DateRange::new(Some(a), None));
+        let r = r.pick(b);
+        assert_eq!(r, DateRange::new(Some(a), Some(b)));
+        // 完成した範囲をクリックすると新しい開始日になる
+        let c = Date::new(2026, 12, 1);
+        assert_eq!(r.pick(c), DateRange::new(Some(c), None));
+    }
+
+    #[test]
+    fn range_pick_swaps_reversed_endpoints() {
+        let a = Date::new(2026, 11, 10);
+        let early = Date::new(2026, 11, 3);
+        let r = DateRange::new(Some(a), None).pick(early);
+        assert_eq!(r, DateRange::new(Some(early), Some(a)));
+    }
+
+    #[test]
+    fn range_days_are_inclusive() {
+        let r = |a, b| DateRange::new(Some(a), Some(b)).days();
+        assert_eq!(r(Date::new(2026, 11, 10), Date::new(2026, 11, 17)), Some(8));
+        assert_eq!(r(Date::new(2026, 11, 10), Date::new(2026, 11, 10)), Some(1));
+        assert_eq!(r(Date::new(2026, 12, 30), Date::new(2027, 1, 2)), Some(4));
+        assert_eq!(r(Date::new(2024, 2, 28), Date::new(2024, 3, 1)), Some(3)); // 閏日をまたぐ
+        assert_eq!(DateRange::default().days(), None);
+        assert_eq!(DateRange::new(Some(Date::new(2026, 1, 1)), None).days(), Some(1));
+    }
+
+    #[test]
+    fn range_compact_format() {
+        let r = DateRange::new(Some(Date::new(2026, 11, 3)), Some(Date::new(2026, 11, 9)));
+        assert_eq!(r.format_compact(), "11月3日 – 11月9日");
+        assert_eq!(DateRange::default().format_compact(), "");
+    }
+}

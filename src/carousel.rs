@@ -340,3 +340,69 @@ fn unit_px(kind: CarouselKind, width: f32, gap: f32) -> f32 {
     let base = slots(kind, width, gap);
     (base[0] + gap).max(40.)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const GAP: f32 = 8.;
+
+    #[test]
+    fn slots_fit_inside_the_viewport() {
+        for kind in [CarouselKind::MultiBrowse, CarouselKind::Hero, CarouselKind::FullScreen] {
+            for w in [400., 640., 972., 1400.] {
+                let s = slots(kind, w, GAP);
+                let total: f32 = s.iter().sum::<f32>() + GAP * (s.len() as f32 - 1.);
+                assert!(total <= w + 0.5, "{kind:?} at {w}: {total}");
+                assert!(s.windows(2).all(|p| p[0] >= p[1] - 0.001), "{kind:?}: not descending");
+            }
+        }
+    }
+
+    #[test]
+    fn widths_at_rest_follow_the_slots() {
+        let base = slots(CarouselKind::MultiBrowse, 972., GAP);
+        for (i, w) in base.iter().enumerate() {
+            assert_eq!(item_width(CarouselKind::MultiBrowse, &base, i, 0.), *w);
+        }
+        // 範囲外の項目は幅 0
+        assert_eq!(item_width(CarouselKind::MultiBrowse, &base, base.len(), 0.), 0.);
+    }
+
+    #[test]
+    fn scrolling_one_step_shifts_widths_by_one_slot() {
+        let base = slots(CarouselKind::MultiBrowse, 972., GAP);
+        // 位置 1 では、項目 1 が先頭スロット、項目 2 が 2 番目…になる
+        assert_eq!(item_width(CarouselKind::MultiBrowse, &base, 0, 1.), 0.);
+        assert_eq!(item_width(CarouselKind::MultiBrowse, &base, 1, 1.), base[0]);
+        assert_eq!(item_width(CarouselKind::MultiBrowse, &base, 2, 1.), base[1]);
+    }
+
+    #[test]
+    fn widths_change_continuously() {
+        let base = slots(CarouselKind::MultiBrowse, 972., GAP);
+        let mut prev = item_width(CarouselKind::MultiBrowse, &base, 1, 0.);
+        for step in 1..=20 {
+            let pos = step as f32 / 20.;
+            let w = item_width(CarouselKind::MultiBrowse, &base, 1, pos);
+            assert!((w - prev).abs() < base[0] / 10., "jump at {pos}: {prev} -> {w}");
+            prev = w;
+        }
+    }
+
+    #[test]
+    fn uncontained_items_keep_a_fixed_width() {
+        let base = slots(CarouselKind::Uncontained, 900., GAP);
+        for pos in [0., 0.5, 3.25] {
+            assert_eq!(item_width(CarouselKind::Uncontained, &base, 4, pos), base[0]);
+        }
+    }
+
+    #[test]
+    fn visible_count_matches_the_layout() {
+        assert_eq!(visible_count(CarouselKind::MultiBrowse, 972., GAP, 9), 3);
+        assert_eq!(visible_count(CarouselKind::Hero, 972., GAP, 9), 2);
+        assert_eq!(visible_count(CarouselKind::FullScreen, 972., GAP, 9), 1);
+        assert!(visible_count(CarouselKind::Uncontained, 900., GAP, 9) >= 1);
+    }
+}

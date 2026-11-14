@@ -628,3 +628,64 @@ pub fn transparent() -> Hsla {
 pub fn f(p: Pixels) -> f32 {
     f32::from(p)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn shadow_color() -> Hsla {
+        hsla(0., 0., 0., 1.)
+    }
+
+    #[test]
+    fn fractional_elevation_matches_integer_levels() {
+        for level in 1..=5u8 {
+            let a = elevation(level, shadow_color());
+            let b = elevation_f(level as f32, shadow_color());
+            assert_eq!(a.len(), b.len(), "level {level}");
+            for (x, y) in a.iter().zip(&b) {
+                assert_eq!(x.blur_radius, y.blur_radius, "level {level}");
+                assert_eq!(x.offset, y.offset, "level {level}");
+                assert!((x.color.a - y.color.a).abs() < 1e-6, "level {level}");
+            }
+        }
+    }
+
+    #[test]
+    fn fractional_elevation_interpolates() {
+        assert!(elevation_f(0., shadow_color()).is_empty());
+        let (lo, hi) = (elevation_f(1., shadow_color()), elevation_f(2., shadow_color()));
+        let mid = elevation_f(1.5, shadow_color());
+        let (l, m, h) = (
+            f32::from(lo[1].blur_radius),
+            f32::from(mid[1].blur_radius),
+            f32::from(hi[1].blur_radius),
+        );
+        assert!(l < m && m < h, "{l} < {m} < {h}");
+    }
+
+    #[test]
+    fn fractional_elevation_is_clamped() {
+        assert!(elevation_f(-3., shadow_color()).is_empty());
+        let top = elevation(5, shadow_color());
+        let over = elevation_f(9., shadow_color());
+        assert_eq!(top.len(), over.len());
+        assert_eq!(top[1].blur_radius, over[1].blur_radius);
+    }
+
+    #[test]
+    fn dark_and_light_schemes_differ() {
+        let (d, l) = (Theme::new(Brightness::Dark), Theme::new(Brightness::Light));
+        assert!(d.is_dark() && !l.is_dark());
+        assert_ne!(d.colors.surface, l.colors.surface);
+        assert_eq!(d.font_family, super::super::ROBOTO_FLEX_FAMILY);
+    }
+
+    #[test]
+    fn dynamic_color_follows_the_seed() {
+        let a = Theme::with_dynamic(Brightness::Light, Some(DynamicColorConfig::new(0x6750A4)));
+        let b = Theme::with_dynamic(Brightness::Light, Some(DynamicColorConfig::new(0x006A6A)));
+        assert_ne!(a.colors.primary, b.colors.primary);
+        assert!(a.dynamic.is_some());
+    }
+}
