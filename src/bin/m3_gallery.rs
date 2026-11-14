@@ -13,7 +13,7 @@ use gpui::{
 use gpui_platform::application;
 use gpui_test::m3::{self, *};
 
-const PAGES: [(&str, IconName); 10] = [
+const PAGES: [(&str, IconName); 11] = [
     ("Buttons", IconName::Home),
     ("Selection", IconName::CheckBox),
     ("Chips & Cards", IconName::Label),
@@ -24,6 +24,7 @@ const PAGES: [(&str, IconName); 10] = [
     ("Menus", IconName::Sort),
     ("App bars & Tabs", IconName::Bookmark),
     ("Color", IconName::Palette),
+    ("More", IconName::Add),
 ];
 
 /// Dynamic color のプリセット（名前, シード）
@@ -93,6 +94,13 @@ struct Gallery {
     demo_rail_expanded: bool,
     demo_rail_sel: usize,
     modal_rail_open: bool,
+    // more components
+    range: (f32, f32),
+    vslider: [f32; 2],
+    scroll_tab: usize,
+    side_open: bool,
+    side_modal_open: bool,
+    full_open: bool,
 }
 
 impl Gallery {
@@ -215,6 +223,12 @@ impl Gallery {
             demo_rail_expanded: true,
             demo_rail_sel: 0,
             modal_rail_open: false,
+            range: (0.25, 0.75),
+            vslider: [0.6, 0.3],
+            scroll_tab: 0,
+            side_open: true,
+            side_modal_open: false,
+            full_open: false,
             page: 0,
             toggles: [false, true, false, true, false],
             favorite: [true, false, true, false],
@@ -1055,6 +1069,12 @@ impl Gallery {
         move |_, w, cx| set((), w, cx)
     }
 
+    /// Esc でダイアログを閉じるハンドラ
+    fn dialog_closer(cx: &mut Context<Self>) -> impl Fn(&mut Window, &mut App) + 'static {
+        let close = Self::set(cx, |g, _: ()| g.dialog = false);
+        move |w, cx| close((), w, cx)
+    }
+
     fn page_menus(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let c = cx.m3().colors.clone();
 
@@ -1786,6 +1806,266 @@ impl Gallery {
         ]
     }
 
+    fn page_more(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let c = cx.m3().colors.clone();
+        let mut out = vec![];
+
+        // ----- 範囲スライダー / 縦スライダー -----
+        let sliders = div()
+            .flex()
+            .gap(px(48.))
+            .items_start()
+            .child(
+                div()
+                    .flex_1()
+                    .flex()
+                    .flex_col()
+                    .gap(px(24.))
+                    .child(caption(
+                        cx,
+                        format!("範囲: {:.2} 〜 {:.2}", self.range.0, self.range.1),
+                    ))
+                    .child(
+                        RangeSlider::new("range-slider", self.range)
+                            .on_change(Self::set(cx, |g, v: (f32, f32)| g.range = v)),
+                    )
+                    .child(caption(cx, "離散（0〜10、ステップ 1）"))
+                    .child(
+                        RangeSlider::new("range-step", (self.range.0 * 10., self.range.1 * 10.))
+                            .range(0., 10.)
+                            .step(1.)
+                            .on_change(Self::set(cx, |g, v: (f32, f32)| {
+                                g.range = (v.0 / 10., v.1 / 10.)
+                            })),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .gap(px(32.))
+                    .items_end()
+                    .child(labeled(
+                        muted(cx),
+                        format!("{:.2}", self.vslider[0]),
+                        VerticalSlider::new("vs-0", self.vslider[0])
+                            .on_change(Self::set(cx, |g, v: f32| g.vslider[0] = v)),
+                    ))
+                    .child(labeled(
+                        muted(cx),
+                        format!("{:.2}", self.vslider[1]),
+                        VerticalSlider::new("vs-1", self.vslider[1])
+                            .track_width(24.)
+                            .height(px(160.))
+                            .on_change(Self::set(cx, |g, v: f32| g.vslider[1] = v)),
+                    )),
+            );
+        out.push(
+            section(
+                cx,
+                "Range & vertical sliders",
+                "つまみ 2 つの範囲スライダー（近い方のつまみを掴む）と、下が最小値の縦スライダー",
+                sliders,
+            )
+            .into_any_element(),
+        );
+
+        // ----- 横スクロールするタブ -----
+        let names = [
+            "ホーム", "おすすめ", "ランキング", "新着", "ジャンル", "ライブラリ", "履歴",
+            "ダウンロード", "設定",
+        ];
+        let mut tabs = Tabs::new("scroll-tabs", self.scroll_tab)
+            .scrollable(true)
+            .on_select(Self::set(cx, |g, i: usize| g.scroll_tab = i));
+        for n in names {
+            tabs = tabs.tab(Tab::new(n));
+        }
+        out.push(
+            section(
+                cx,
+                "Scrollable tabs",
+                "タブが多いときは横にスクロールする。インジケーターも一緒に動く",
+                div()
+                    .w(px(520.))
+                    .rounded(shape::LARGE)
+                    .overflow_hidden()
+                    .bg(c.surface)
+                    .child(tabs)
+                    .child(
+                        div()
+                            .h(px(64.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_color(c.on_surface_variant)
+                            .child(names[self.scroll_tab]),
+                    ),
+            )
+            .into_any_element(),
+        );
+
+        // ----- サイドシート -----
+        let toggle_side = Self::set(cx, |g, _: ()| g.side_open = !g.side_open);
+        let close_side = Self::set(cx, |g, _: ()| g.side_open = false);
+        let open_modal_side = Self::set(cx, |g, _: ()| g.side_modal_open = true);
+        let close_modal_side = Self::set(cx, |g, _: ()| g.side_modal_open = false);
+        let side_content = |sheet: SideSheet| {
+            sheet
+                .child(div().text_color(c.on_surface_variant).child("補足情報や設定を、本文を開いたまま横に表示します。"))
+                .child(Checkbox::new("side-cb-1", true).label("通知を受け取る"))
+                .child(Checkbox::new("side-cb-2", false).label("自動で保存"))
+                .action(Button::new("side-cancel", "キャンセル").text())
+                .action(Button::new("side-save", "保存"))
+        };
+        let inline_frame = div()
+            .relative()
+            .w_full()
+            .h(px(440.))
+            .flex()
+            .rounded(shape::LARGE)
+            .overflow_hidden()
+            .border_1()
+            .border_color(c.outline_variant)
+            .bg(c.surface)
+            .child(
+                div()
+                    .flex_1()
+                    .h_full()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(12.))
+                    .child(
+                        Button::new("toggle-side", if self.side_open { "閉じる" } else { "開く" })
+                            .tonal()
+                            .on_click(move |_, w, cx| toggle_side((), w, cx)),
+                    )
+                    .child(div().text_color(c.on_surface_variant).child("本文")),
+            )
+            .child(side_content(
+                SideSheet::new("side-std", self.side_open, "詳細")
+                    .on_close(move |w, cx| close_side((), w, cx)),
+            ));
+        let modal_frame = div()
+            .relative()
+            .w_full()
+            .h(px(440.))
+            .rounded(shape::LARGE)
+            .overflow_hidden()
+            .border_1()
+            .border_color(c.outline_variant)
+            .bg(c.surface)
+            .child(
+                div()
+                    .size_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        Button::new("open-side-modal", "モーダルを開く")
+                            .on_click(move |_, w, cx| open_modal_side((), w, cx)),
+                    ),
+            )
+            .child(side_content(
+                SideSheet::new("side-modal", self.side_modal_open, "フィルター")
+                    .modal(true)
+                    .on_close(move |w, cx| close_modal_side((), w, cx)),
+            ));
+        out.push(
+            section(
+                cx,
+                "Side sheet",
+                "左: 標準（本文を押し出す）。右: モーダル（スクリムの上に右から重ねる。Esc・スクリムで閉じる）",
+                div()
+                    .flex()
+                    .gap(px(16.))
+                    .child(div().flex_1().child(inline_frame))
+                    .child(div().flex_1().child(modal_frame)),
+            )
+            .into_any_element(),
+        );
+
+        // ----- 全画面ダイアログ -----
+        let open_full = Self::set(cx, |g, _: ()| g.full_open = true);
+        let close_full = Self::set(cx, |g, _: ()| g.full_open = false);
+        let close_full2 = Self::set(cx, |g, _: ()| g.full_open = false);
+        let full_field = self.fields.first().cloned();
+        let full_frame = div()
+            .relative()
+            .w_full()
+            .h(px(360.))
+            .rounded(shape::LARGE)
+            .overflow_hidden()
+            .border_1()
+            .border_color(c.outline_variant)
+            .bg(c.surface_container_low)
+            .child(
+                div()
+                    .size_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        Button::new("open-full", "全画面ダイアログを開く")
+                            .on_click(move |_, w, cx| open_full((), w, cx)),
+                    ),
+            )
+            .child(
+                FullScreenDialog::new("full-dlg", self.full_open, "新しい予定")
+                    .action("保存", move |_, w, cx| close_full2((), w, cx))
+                    .on_close(move |w, cx| close_full((), w, cx))
+                    .child(div().text_color(c.on_surface_variant).child("タイトルを入力して保存してください。✕ か Esc で破棄して閉じます。"))
+                    .children(full_field),
+            );
+        out.push(
+            section(
+                cx,
+                "Full-screen dialog",
+                "画面全体を使うダイアログ。上部に ✕・タイトル・保存",
+                full_frame,
+            )
+            .into_any_element(),
+        );
+
+        // ----- リッチツールチップ -----
+        let log = Self::set(cx, |g, _: ()| g.menu_log = "リッチツールチップのアクション".into());
+        let action: ClickHandler = std::rc::Rc::new(move |_, w, cx| log((), w, cx));
+        let rich = wrap_row()
+            .gap(px(24.))
+            .child(
+                div()
+                    .id("rt-1")
+                    .hoverable_tooltip(m3::rich_tooltip(
+                        Some("リッチツールチップ"),
+                        "タイトル・説明・アクションを持てます。マウスを乗せたまま中に入れます。",
+                        Some(("詳しく見る", action)),
+                    ))
+                    .child(Button::new("rt-btn-1", "アクション付き").tonal().icon(IconName::Help)),
+            )
+            .child(
+                div()
+                    .id("rt-2")
+                    .hoverable_tooltip(m3::rich_tooltip(
+                        None,
+                        "説明だけのリッチツールチップです。",
+                        None,
+                    ))
+                    .child(Button::new("rt-btn-2", "説明のみ").outlined()),
+            )
+            .child(caption(cx, format!("最後の操作: {}", self.menu_log)));
+        out.push(
+            section(
+                cx,
+                "Rich tooltip",
+                "ホバーで表示。中のボタンを押せる（hoverable_tooltip）",
+                rich,
+            )
+            .into_any_element(),
+        );
+        out
+    }
+
     fn page_text_fields(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let f = &self.fields;
         let col = |a: &Entity<TextField>, b: &Entity<TextField>| {
@@ -2042,7 +2322,8 @@ impl Render for Gallery {
             6 => self.page_text_fields(cx),
             7 => self.page_menus(cx),
             8 => self.page_app_bars(cx),
-            _ => self.page_color(cx),
+            9 => self.page_color(cx),
+            _ => self.page_more(cx),
         };
 
         let toggle_rail = Self::set(cx, |g, _: ()| g.rail_expanded = !g.rail_expanded);
@@ -2119,67 +2400,56 @@ impl Render for Gallery {
             .text_color(c.on_surface)
             .child(div().size_full().flex().child(rail).child(content));
 
-        if self.dialog {
-            root = root.child(
-                div()
-                    .id("scrim")
-                    .absolute()
-                    .inset_0()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .bg(c.scrim.opacity(0.32))
-                    .on_click(cx.listener(|g, _, _, cx| {
+        // ダイアログとスナックバーも、閉じるアニメーションのため常に配置する
+        root = root.child(
+            DialogOverlay::new(
+                "dlg",
+                self.dialog,
+                Dialog::new(
+                    "ファイルを削除しますか？",
+                    "削除したファイルは 30 日間ゴミ箱に保存され、その後完全に削除されます。",
+                )
+                .icon(IconName::Delete)
+                .action(Button::new("dlg-cancel", "キャンセル").text().on_click(
+                    cx.listener(|g, _, _, cx| {
                         g.dialog = false;
                         cx.notify();
-                    }))
-                    .child(
-                        Dialog::new(
-                            "ファイルを削除しますか？",
-                            "削除したファイルは 30 日間ゴミ箱に保存され、その後完全に削除されます。",
-                        )
-                        .icon(IconName::Delete)
-                        .action(Button::new("dlg-cancel", "キャンセル").text().on_click(
+                    }),
+                ))
+                .action(Button::new("dlg-ok", "削除").text().on_click(cx.listener(
+                    |g, _, _, cx| {
+                        g.dialog = false;
+                        g.show_snackbar(cx);
+                    },
+                ))),
+            )
+            .on_dismiss(Self::dialog_closer(cx)),
+        );
+        root = root.child(
+            div()
+                .absolute()
+                .bottom(px(24.))
+                .left(px(96.))
+                .right_0()
+                .flex()
+                .justify_center()
+                .child(SnackbarHost::new(
+                    "snack",
+                    self.snackbar,
+                    Snackbar::new("ファイルを削除しました")
+                        .action(
+                            "元に戻す",
                             cx.listener(|g, _, _, cx| {
-                                g.dialog = false;
-                                cx.notify();
-                            }),
-                        ))
-                        .action(Button::new("dlg-ok", "削除").text().on_click(cx.listener(
-                            |g, _, _, cx| {
-                                g.dialog = false;
-                                g.show_snackbar(cx);
-                            },
-                        ))),
-                    ),
-            );
-        }
-        if self.snackbar {
-            root = root.child(
-                div()
-                    .absolute()
-                    .bottom(px(24.))
-                    .left(px(96.))
-                    .right_0()
-                    .flex()
-                    .justify_center()
-                    .child(
-                        Snackbar::new("ファイルを削除しました")
-                            .action(
-                                "元に戻す",
-                                cx.listener(|g, _, _, cx| {
-                                    g.snackbar = false;
-                                    cx.notify();
-                                }),
-                            )
-                            .on_close(cx.listener(|g, _, _, cx| {
                                 g.snackbar = false;
                                 cx.notify();
-                            })),
-                    ),
-            );
-        }
-
+                            }),
+                        )
+                        .on_close(cx.listener(|g, _, _, cx| {
+                            g.snackbar = false;
+                            cx.notify();
+                        })),
+                )),
+        );
         // ボトムシート（閉じるアニメーションのため常に配置）
         let close_sheet = Self::set(cx, |g, _: ()| g.sheet_open = false);
         let sheet_item = |id: &'static str, icon: IconName, label: &'static str| {

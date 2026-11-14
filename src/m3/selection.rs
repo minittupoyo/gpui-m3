@@ -9,8 +9,8 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ChangeHandler, Icon, IconName, StyledExt, TypeScale, state, track_press,
-    transparent, use_pressed,
+    ActiveTheme, ChangeHandler, Icon, IconName, StyledExt, TypeScale, ripple_overlay, state,
+    track_press, track_ripple, transparent, use_pressed, use_ripple,
 };
 
 fn eid(s: String) -> ElementId {
@@ -166,17 +166,19 @@ impl RenderOnce for Switch {
             .rounded_full()
             .bg(track)
             .border_2()
-            .border_color(border)
-            .child(anchor);
+            .border_color(border);
 
         if !self.disabled {
+            let ripple = use_ripple(&self.id, window, cx);
+            el = el.child(ripple_overlay(&ripple, layer, gpui::Corners::all(px(16.))));
+            el = track_ripple(el, &ripple);
             el = el.cursor_pointer();
             el = track_press(el, &pressed_state);
             if let Some(h) = self.on_change {
                 el = el.on_click(move |_, w, cx| h(!on, w, cx));
             }
         }
-        el
+        el.child(anchor)
     }
 }
 
@@ -230,7 +232,7 @@ impl Checkbox {
 }
 
 impl RenderOnce for Checkbox {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let filled = self.checked || self.indeterminate;
@@ -303,8 +305,13 @@ impl RenderOnce for Checkbox {
             .group(group)
             .flex()
             .items_center()
-            .gap(px(4.))
-            .child(target);
+            .gap(px(4.));
+        let ripple = (!self.disabled).then(|| use_ripple(&self.id, window, cx));
+        if let Some(r) = ripple.as_ref() {
+            el = el.child(ripple_overlay(r, layer, gpui::Corners::all(px(20.))));
+            el = track_ripple(el, r);
+        }
+        el = el.child(target);
         if let Some(label) = self.label {
             el = el.child(
                 div()
@@ -367,7 +374,7 @@ impl Radio {
 }
 
 impl RenderOnce for Radio {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let color = match (self.selected, self.disabled) {
@@ -415,8 +422,13 @@ impl RenderOnce for Radio {
             .group(group)
             .flex()
             .items_center()
-            .gap(px(4.))
-            .child(target);
+            .gap(px(4.));
+        let ripple = (!self.disabled).then(|| use_ripple(&self.id, window, cx));
+        if let Some(r) = ripple.as_ref() {
+            el = el.child(ripple_overlay(r, layer, gpui::Corners::all(px(20.))));
+            el = track_ripple(el, r);
+        }
+        el = el.child(target);
         if let Some(label) = self.label {
             el = el.child(
                 div()

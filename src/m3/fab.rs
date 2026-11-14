@@ -10,7 +10,7 @@ use gpui::{
 
 use super::{
     ActiveTheme, ClickHandler, Icon, IconName, StyledExt, Theme, TypeScale, state, state_layer,
-    track_press, use_pressed,
+    ripple_overlay, track_press, track_ripple, use_pressed, use_ripple,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -149,12 +149,15 @@ impl RenderOnce for Fab {
                 s.bg(state_layer(bg, fg, state::HOVER))
                     .m3_elevation(hover_elev, shadow)
             })
-            .active(move |s| s.bg(state_layer(bg, fg, state::PRESSED)))
-            .child(Icon::new(self.icon).size(icon).color(fg));
+            ;
+        let ripple = use_ripple(&self.id, window, cx);
+        el = el.child(ripple_overlay(&ripple, fg, gpui::Corners::all(r)));
+        el = el.child(Icon::new(self.icon).size(icon).color(fg));
 
         if let Some(label) = self.label {
             el = el.px(pad).gap(pad * 0.5).child(label);
         }
+        el = track_ripple(el, &ripple);
         el = track_press(el, &pressed_state);
         if let Some(handler) = self.on_click {
             el = el.on_click(move |e, w, cx| handler(e, w, cx));

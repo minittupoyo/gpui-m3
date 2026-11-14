@@ -6,7 +6,10 @@ use gpui::{
     Window, canvas, div, prelude::*, px,
 };
 
-use super::{ActiveTheme, Badge, ChangeHandler, Icon, IconName, StyledExt, TypeScale, state};
+use super::{
+    ActiveTheme, Badge, ChangeHandler, Icon, IconName, StyledExt, TypeScale, ripple_overlay, state,
+    track_ripple, use_ripple,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TabsVariant {
@@ -52,6 +55,7 @@ pub struct Tabs {
     tabs: Vec<Tab>,
     selected: usize,
     variant: TabsVariant,
+    scrollable: bool,
     on_select: Option<ChangeHandler<usize>>,
 }
 
@@ -62,8 +66,14 @@ impl Tabs {
             tabs: vec![],
             selected,
             variant: TabsVariant::Primary,
+            scrollable: false,
             on_select: None,
         }
+    }
+    /// タブが多いときに横スクロールさせる（各タブは内容の幅になる）
+    pub fn scrollable(mut self, v: bool) -> Self {
+        self.scrollable = v;
+        self
     }
     pub fn tab(mut self, tab: Tab) -> Self {
         self.tabs.push(tab);
@@ -102,7 +112,16 @@ impl RenderOnce for Tabs {
         let height = if primary && has_icons { 64. } else { 48. };
         let layer = c.on_surface.opacity(state::HOVER);
 
-        let mut row = div().relative().flex().w_full().h(px(height));
+        let scrollable = self.scrollable;
+        let mut row = div()
+            .id(ElementId::Name(format!("{}::row", self.id).into()))
+            .relative()
+            .flex()
+            .w_full()
+            .h(px(height));
+        if scrollable {
+            row = row.overflow_x_scroll();
+        }
         // コンテナ位置の記録
         {
             let l = layout.clone();
@@ -180,10 +199,13 @@ impl RenderOnce for Tabs {
                 }
             }
 
+            let tab_id: SharedString = format!("{}-{i}", self.id).into();
+            let ripple = use_ripple(&tab_id, window, cx);
             let mut tab_el = div()
-                .id(ElementId::Name(format!("{}-{i}", self.id).into()))
+                .id(ElementId::Name(tab_id.clone()))
                 .relative()
-                .flex_1()
+                .when(!scrollable, |d| d.flex_1())
+                .when(scrollable, |d| d.flex_none().min_w(px(96.)))
                 .h_full()
                 .flex()
                 .items_center()
@@ -191,7 +213,7 @@ impl RenderOnce for Tabs {
                 .px(px(16.))
                 .cursor_pointer()
                 .hover(move |s| s.bg(layer))
-                .active(move |s| s.bg(c_pressed(layer)))
+                .child(ripple_overlay(&ripple, c.on_surface, gpui::Corners::all(px(0.))))
                 .child(
                     canvas(
                         move |b, _, cx| {
@@ -210,29 +232,45 @@ impl RenderOnce for Tabs {
                     .size_full(),
                 )
                 .child(content);
+            tab_el = track_ripple(tab_el, &ripple);
             if let Some(h) = self.on_select.clone() {
                 tab_el = tab_el.on_click(move |_, w, cx| h(i, w, cx));
             }
             row = row.child(tab_el);
         }
 
-        // 区切り線
-        row = row.child(
+        // 区切り線（スクロールするときは枠の側に置いて動かさない）
+        let divider = div()
+            .absolute()
+            .left_0()
+            .right_0()
+            .bottom_0()
+            .h(px(1.))
+            .bg(c.surface_container_highest);
+        if !scrollable {
+            row = row.child(divider);
+        }
+        let divider_outer = (scrollable).then(|| {
             div()
                 .absolute()
                 .left_0()
                 .right_0()
                 .bottom_0()
                 .h(px(1.))
-                .bg(c.surface_container_highest),
-        );
+                .bg(c.surface_container_highest)
+        });
 
         // インジケーター
         let l = layout.read(cx);
         if let (Some(tab_b), Some(content_b)) = (l.tabs.get(self.selected), l.contents.get(self.selected))
             && tab_b.size.width > px(0.)
         {
-            let origin = l.container.origin.x;
+            // スクロールするときは、内容の左端（スクロールで動く）を基準にする
+            let origin = if scrollable {
+                l.tabs.first().map(|b| b.origin.x).unwrap_or(l.container.origin.x)
+            } else {
+                l.container.origin.x
+            };
             let (left, width) = if primary {
                 let w = content_b.size.width.max(px(24.));
                 let center = content_b.center().x;
@@ -266,10 +304,15 @@ impl RenderOnce for Tabs {
                     ),
             );
         }
-        row
+        match divider_outer {
+            Some(d) => div()
+                .relative()
+                .w_full()
+                .child(row)
+                .child(d)
+                .into_any_element(),
+            None => row.into_any_element(),
+        }
     }
 }
 
-fn c_pressed(layer: gpui::Hsla) -> gpui::Hsla {
-    layer.opacity(state::PRESSED / state::HOVER)
-}

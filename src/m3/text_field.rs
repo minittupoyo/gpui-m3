@@ -147,7 +147,7 @@ pub struct TextField {
 
 impl TextField {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let focus_handle = cx.focus_handle();
+        let focus_handle = cx.focus_handle().tab_index(0).tab_stop(true);
         let subs = vec![
             cx.on_focus(&focus_handle, window, |this, _, cx| {
                 this.start_blink(cx);

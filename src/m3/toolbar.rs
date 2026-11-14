@@ -15,8 +15,8 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ClickHandler, Fab, FabColor, Icon, IconName, StyledExt, Theme, state, state_layer,
-    tooltip, transparent,
+    ActiveTheme, ClickHandler, Fab, FabColor, Icon, IconName, RippleHandle, StyledExt, Theme,
+    ripple_overlay, state, state_layer, tooltip, track_ripple, transparent, use_ripple,
 };
 
 pub struct ToolbarAction {
@@ -103,6 +103,7 @@ fn mix(a: Hsla, b: Hsla, t: f32) -> Hsla {
 /// 1 つのアクションボタン（選択で 48 → 64px のピルに広がる）
 fn render_action(
     theme: &Theme,
+    ripple: RippleHandle,
     id: String,
     action: ToolbarAction,
     vibrant: bool,
@@ -132,6 +133,7 @@ fn render_action(
     if let Some(t) = tip {
         el = el.tooltip(tooltip(t));
     }
+    let el = track_ripple(el, &ripple);
 
     el.with_spring(
         ElementId::Name(format!("{id}::sel").into()),
@@ -146,9 +148,10 @@ fn render_action(
             } else {
                 el.h(px(48.)).w(px(long))
             };
+            let radius = px(24.);
             el.bg(bg)
                 .hover(move |s| s.bg(state_layer(bg, color, state::HOVER)))
-                .active(move |s| s.bg(state_layer(bg, color, state::PRESSED)))
+                .child(ripple_overlay(&ripple, color, gpui::Corners::all(radius)))
                 .child(Icon::new(icon).size(px(24.)).color(color))
         },
     )
@@ -185,7 +188,7 @@ impl DockedToolbar {
 }
 
 impl RenderOnce for DockedToolbar {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let (bg, fg, _, _) = toolbar_colors(&theme, self.vibrant);
         let mut bar = div()
@@ -201,7 +204,11 @@ impl RenderOnce for DockedToolbar {
         for (i, item) in self.items.into_iter().enumerate() {
             bar = bar.child(match item {
                 ToolbarItem::Action(a) => {
-                    render_action(&theme, format!("{}-{i}", self.id), a, self.vibrant, false)
+                    {
+                        let rid = format!("{}-{i}", self.id);
+                        let r = use_ripple(&rid.clone().into(), window, cx);
+                        render_action(&theme, r, rid, a, self.vibrant, false)
+                    }
                 }
                 ToolbarItem::Element(e) => e,
             });
@@ -264,7 +271,7 @@ impl FloatingToolbar {
 }
 
 impl RenderOnce for FloatingToolbar {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let (bg, fg, _, _) = toolbar_colors(&theme, self.vibrant);
         let vertical = self.vertical;
@@ -288,7 +295,11 @@ impl RenderOnce for FloatingToolbar {
         for (i, item) in self.items.into_iter().enumerate() {
             bar = bar.child(match item {
                 ToolbarItem::Action(a) => {
-                    render_action(&theme, format!("{}-{i}", self.id), a, self.vibrant, vertical)
+                    {
+                        let rid = format!("{}-{i}", self.id);
+                        let r = use_ripple(&rid.clone().into(), window, cx);
+                        render_action(&theme, r, rid, a, self.vibrant, vertical)
+                    }
                 }
                 ToolbarItem::Element(e) => e,
             });

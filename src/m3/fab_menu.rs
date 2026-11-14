@@ -19,8 +19,8 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ClickHandler, Icon, IconName, StyledExt, Theme, TypeScale, spring_ratio, state,
-    state_layer,
+    ActiveTheme, ClickHandler, Icon, IconName, StyledExt, Theme, TypeScale, dismiss_on_escape,
+    ripple_overlay, spring_ratio, state, state_layer, track_ripple, use_popup_focus, use_ripple,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -152,8 +152,10 @@ impl RenderOnce for FabMenu {
             let bg = container;
             let close = set_open.clone();
             let handler = item.on_click.clone();
+            let item_id: SharedString = format!("{id}-item-{i}").into();
+            let ripple = use_ripple(&item_id, window, cx);
             let pill = div()
-                .id(ElementId::Name(format!("{id}-item-{i}").into()))
+                .id(ElementId::Name(item_id.clone()))
                 .flex()
                 .items_center()
                 .gap(px(8.))
@@ -167,15 +169,16 @@ impl RenderOnce for FabMenu {
                 .m3_elevation(1, shadow)
                 .cursor_pointer()
                 .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)))
-                .active(move |s| s.bg(state_layer(bg, fg, state::PRESSED)))
                 .on_click(move |e, w, cx| {
                     if let Some(h) = handler.as_ref() {
                         h(e, w, cx);
                     }
                     close(false, cx);
                 })
+                .child(ripple_overlay(&ripple, fg, gpui::Corners::all(px(28.))))
                 .child(Icon::new(item.icon).size(px(24.)).color(fg))
                 .child(item.label);
+            let pill = track_ripple(pill, &ripple);
 
             let rise = 16. + from_fab * 6.;
             items = items.child(div().relative().child(pill).with_spring(
@@ -196,13 +199,18 @@ impl RenderOnce for FabMenu {
         // ----- FAB ⇄ 閉じるボタン -----
         let toggle = set_open.clone();
         let base_icon = self.icon;
-        let fab = div()
-            .id(ElementId::Name(format!("{id}::fab").into()))
-            .relative()
-            .size(px(56.))
-            .flex_none()
-            .cursor_pointer()
-            .on_click(move |_, _, cx| toggle(!open, cx))
+        let fab_ripple = use_ripple(&format!("{id}::fab").into(), window, cx);
+        let fab_ripple_overlay = fab_ripple.clone();
+        let fab = track_ripple(
+            div()
+                .id(ElementId::Name(format!("{id}::fab").into()))
+                .relative()
+                .size(px(56.))
+                .flex_none()
+                .cursor_pointer()
+                .on_click(move |_, _, cx| toggle(!open, cx)),
+            &fab_ripple,
+        )
             .with_spring(
                 ElementId::Name(format!("{id}::morph").into()),
                 SpringAnimation::new(theme.motion.fast_spatial).to(if open { 1. } else { 0. }),
@@ -226,6 +234,11 @@ impl RenderOnce for FabMenu {
                         .bg(bg)
                         .hover(move |s| s.bg(hover_bg))
                         .m3_elevation(if open { 2 } else { 3 }, shadow)
+                        .child(ripple_overlay(
+                            &fab_ripple_overlay,
+                            fg,
+                            gpui::Corners::all(px(radius)),
+                        ))
                         .child(icon(
                             base_icon,
                             1. - tc,
@@ -240,8 +253,9 @@ impl RenderOnce for FabMenu {
             );
 
         let close_out = set_open.clone();
-        div()
-            .id(ElementId::Name(id))
+        let close_esc = set_open.clone();
+        let root = div()
+            .id(ElementId::Name(id.clone()))
             .flex()
             .flex_col()
             .items_end()
@@ -249,6 +263,17 @@ impl RenderOnce for FabMenu {
             .on_mouse_down_out(move |_, _, cx| close_out(false, cx))
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .child(items)
-            .child(fab)
+            .child(fab);
+        // 開いている間は Esc で閉じる
+        if open {
+            let focus = use_popup_focus(&id, window, cx);
+            dismiss_on_escape(
+                root,
+                &focus,
+                Some(Rc::new(move |_, cx| close_esc(false, cx))),
+            )
+        } else {
+            root
+        }
     }
 }

@@ -12,7 +12,7 @@ use gpui::{
     Styled, Window, canvas, div, prelude::*, px,
 };
 
-use super::{ActiveTheme, StyledExt, shape};
+use super::{ActiveTheme, StyledExt, dismiss_on_escape, shape, use_popup_focus};
 
 #[derive(Default)]
 struct SheetState {
@@ -193,7 +193,7 @@ impl RenderOnce for BottomSheet {
         );
 
         let scrim_dismiss = on_dismiss.clone();
-        div()
+        let root = div()
             .id(ElementId::Name(format!("{id}::root").into()))
             .absolute()
             .inset_0()
@@ -207,8 +207,15 @@ impl RenderOnce for BottomSheet {
                     d(w, cx);
                 }
             })
-            .child(sheet)
-            .with_spring(
+            .child(sheet);
+        // 開いている間だけフォーカスを持ち、Esc で閉じる
+        let root = if open {
+            let focus = use_popup_focus(&id, window, cx);
+            dismiss_on_escape(root, &focus, on_dismiss.clone())
+        } else {
+            root
+        };
+        root.with_spring(
                 ElementId::Name(format!("{id}::open").into()),
                 SpringAnimation::new(motion.default_spatial).to(if open { 1. } else { 0. }),
                 move |el, t| {

@@ -11,8 +11,8 @@ use gpui::{
 
 use super::{
     ActiveTheme, ChangeHandler, ComponentSize, Icon, IconButtonVariant, IconName, StyledExt,
-    button_metrics, icon_button_colors, icon_button_size, state, state_layer, track_press,
-    use_pressed,
+    button_metrics, icon_button_colors, icon_button_size, ripple_overlay, state, state_layer,
+    track_press, track_ripple, use_pressed, use_ripple,
 };
 
 pub struct ButtonGroupItem {
@@ -129,8 +129,21 @@ impl RenderOnce for ConnectedButtonGroup {
                 .text_color(fg)
                 .m3_type(m.type_scale)
                 .cursor_pointer()
-                .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)))
-                .active(move |s| s.bg(state_layer(bg, fg, state::PRESSED)));
+                .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)));
+            let ripple = use_ripple(&id, window, cx);
+            let l = if first { outer } else { inner_r };
+            let rr = if last { outer } else { inner_r };
+            el = el.child(ripple_overlay(
+                &ripple,
+                fg,
+                gpui::Corners {
+                    top_left: l,
+                    bottom_left: l,
+                    top_right: rr,
+                    bottom_right: rr,
+                },
+            ));
+            el = track_ripple(el, &ripple);
             el = track_press(el, &pressed_state);
             if let Some(h) = self.on_toggle.clone() {
                 el = el.on_click(move |_, w, cx| h(i, w, cx));
@@ -249,7 +262,6 @@ impl RenderOnce for StandardButtonGroup {
                 .bg(bg)
                 .cursor_pointer()
                 .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)))
-                .active(move |s| s.bg(state_layer(bg, fg, state::PRESSED)))
                 .on_mouse_down(MouseButton::Left, move |_, _, cx| {
                     down.update(cx, |p, cx| {
                         *p = Some(i);
@@ -268,7 +280,11 @@ impl RenderOnce for StandardButtonGroup {
                         cx.notify();
                     })
                 })
-                .child(Icon::new(icon).size(icon_size).color(fg));
+                ;
+            let ripple = use_ripple(&id, window, cx);
+            btn = btn.child(ripple_overlay(&ripple, fg, gpui::Corners::all(radius)));
+            btn = track_ripple(btn, &ripple);
+            btn = btn.child(Icon::new(icon).size(icon_size).color(fg));
             if let Some(b) = border {
                 btn = btn.border_1().border_color(b);
             }

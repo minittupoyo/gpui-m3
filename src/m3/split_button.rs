@@ -21,8 +21,8 @@ use gpui::{
 
 use super::{
     ActiveTheme, ButtonColors, ButtonVariant, ClickHandler, ComponentSize, Icon, IconName, Menu,
-    StyledExt, button_colors, button_metrics, dismisser, popup_state, state, state_layer,
-    track_press, use_pressed,
+    RippleHandle, StyledExt, button_colors, button_metrics, dismisser, popup_state, ripple_overlay,
+    state, state_layer, track_press, track_ripple, use_pressed, use_ripple,
 };
 
 /// 内側の角（通常, ホバー・押下時）とトレーリング側の幅
@@ -168,7 +168,12 @@ impl RenderOnce for SplitButton {
             inner
         };
 
-        let apply_common = move |el: Stateful<Div>| -> Stateful<Div> {
+        let lead_ripple = use_ripple(&lead_id, window, cx);
+        let trail_ripple = use_ripple(&trail_id, window, cx);
+        let apply_common = move |el: Stateful<Div>,
+                                 ripple: RippleHandle,
+                                 radii: gpui::Corners<Pixels>|
+              -> Stateful<Div> {
             let mut el = el
                 .h(h)
                 .flex()
@@ -189,14 +194,24 @@ impl RenderOnce for SplitButton {
             if !disabled {
                 el = el
                     .cursor_pointer()
-                    .hover(move |s| s.bg(state_layer(container, content, state::HOVER)))
-                    .active(move |s| s.bg(state_layer(container, content, state::PRESSED)));
+                    .hover(move |s| s.bg(state_layer(container, content, state::HOVER)));
+                el = el.child(ripple_overlay(&ripple, content, radii));
+                el = track_ripple(el, &ripple);
             }
             el
         };
 
         // ----- 左: メインアクション -----
-        let mut lead = apply_common(div().id(ElementId::Name(lead_id.clone())))
+        let mut lead = apply_common(
+            div().id(ElementId::Name(lead_id.clone())),
+            lead_ripple,
+            gpui::Corners {
+                top_left: outer,
+                bottom_left: outer,
+                top_right: lead_inner,
+                bottom_right: lead_inner,
+            },
+        )
             .gap(m.gap)
             .pl(m.padding)
             .pr(m.padding * 0.75)
@@ -242,7 +257,17 @@ impl RenderOnce for SplitButton {
                     .with_transformation(Transformation::rotate(radians(
                         t * std::f32::consts::PI,
                     )));
-                let mut btn = apply_common(div().id(ElementId::Name(trail_id2.clone())))
+                let tr = trail_inner.min(outer);
+                let mut btn = apply_common(
+                    div().id(ElementId::Name(trail_id2.clone())),
+                    trail_ripple.clone(),
+                    gpui::Corners {
+                        top_left: tr,
+                        bottom_left: tr,
+                        top_right: outer,
+                        bottom_right: outer,
+                    },
+                )
                     .w(px(width))
                     .child(chevron);
                 if !disabled {

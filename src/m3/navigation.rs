@@ -11,13 +11,14 @@ use std::rc::Rc;
 
 use gpui::AnimationExt as _;
 use gpui::{
-    AnyElement, App, ElementId, IntoElement, RenderOnce, SharedString, SpringAnimation, Window,
-    div, prelude::*, px,
+    AnyElement, App, ElementId, IntoElement, RenderOnce, SharedString, SpringAnimation,
+    Window, div, prelude::*, px,
 };
 
 use super::{
     ActiveTheme, Badge, ChangeHandler, ClickHandler, Fab, FabColor, Icon, IconButton, IconName,
-    StyledExt, Theme, TypeScale, shape, state,
+    RippleHandle, StyledExt, Theme, TypeScale, dismiss_on_escape, ripple_overlay, shape, state,
+    track_ripple, use_popup_focus, use_ripple,
 };
 
 type VoidHandler = Rc<dyn Fn(&mut Window, &mut App)>;
@@ -142,6 +143,7 @@ fn nav_item(
 /// 展開したレール用（高さ 56px のピル。アイコンとラベルが横並び）
 fn nav_item_expanded(
     theme: &Theme,
+    ripple: RippleHandle,
     id: String,
     item: NavItem,
     selected: bool,
@@ -190,6 +192,7 @@ fn nav_item_expanded(
         .rounded_full()
         .child(indicator)
         .child(hover)
+        .child(ripple_overlay(&ripple, fg, gpui::Corners::all(px(28.))))
         .child(div().relative().child(Icon::new(icon).size(px(24.)).color(fg)))
         .child(
             div()
@@ -211,6 +214,7 @@ fn nav_item_expanded(
         .px(px(20.))
         .cursor_pointer()
         .child(row);
+    el = track_ripple(el, &ripple);
     if let Some(h) = on_select {
         el = el.on_click(move |_, w, cx| h(index, w, cx));
     }
@@ -240,6 +244,8 @@ struct RailParts {
     toggle_icon: IconName,
     fab: Option<(IconName, SharedString, Option<ClickHandler>)>,
     expanded_width: f32,
+    /// 項目ごとの波紋の状態（展開レイアウト用）
+    ripples: Vec<RippleHandle>,
 }
 
 /// レール本体。`exp` が true なら展開レイアウト（ラベル横並び）
@@ -255,6 +261,7 @@ fn rail_body(theme: &Theme, p: RailParts, exp: bool) -> AnyElement {
         toggle_icon,
         fab,
         expanded_width,
+        ripples,
     } = p;
     let c = &theme.colors;
     let rail_w = if exp { expanded_width } else { COLLAPSED_W };
@@ -309,7 +316,15 @@ fn rail_body(theme: &Theme, p: RailParts, exp: bool) -> AnyElement {
                 index += 1;
                 let item_id = format!("{id}-{i}");
                 list = list.child(if exp {
-                    nav_item_expanded(theme, item_id, item, i == selected, on_select.clone(), i)
+                    nav_item_expanded(
+                        theme,
+                        ripples[i].clone(),
+                        item_id,
+                        item,
+                        i == selected,
+                        on_select.clone(),
+                        i,
+                    )
                 } else {
                     div()
                         .w_full()
@@ -344,7 +359,14 @@ fn rail_body(theme: &Theme, p: RailParts, exp: bool) -> AnyElement {
             }
         }
     }
-    col = col.child(list).child(div().flex_1());
+    // 項目が多いときはスクロールできる
+    col = col.child(
+        div()
+            .id(ElementId::Name(format!("{id}::list").into()))
+            .flex_1()
+            .overflow_y_scroll()
+            .child(list),
+    );
     for el in footer {
         col = col.child(wrap(el, 28.));
     }
@@ -445,9 +467,17 @@ impl NavigationRail {
 }
 
 impl RenderOnce for NavigationRail {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let id = self.id.clone();
+        let item_count = self
+            .entries
+            .iter()
+            .filter(|e| matches!(e, NavEntry::Item(_)))
+            .count();
+        let ripples: Vec<RippleHandle> = (0..item_count)
+            .map(|i| use_ripple(&format!("{id}-{i}").into(), window, cx))
+            .collect();
         let expanded = self.expanded;
         let modal = self.modal;
         let width = self.expanded_width;
@@ -484,6 +514,7 @@ impl RenderOnce for NavigationRail {
             },
             fab: self.fab,
             expanded_width: width,
+            ripples,
         };
 
         if !modal {
@@ -522,8 +553,12 @@ impl RenderOnce for NavigationRail {
             .absolute()
             .inset_0()
             .overflow_hidden();
-        if let Some(d) = dismiss {
+        if let Some(d) = dismiss.clone() {
             root = root.on_click(move |_, w, cx| d(w, cx));
+        }
+        if open {
+            let focus = use_popup_focus(&id, window, cx);
+            root = dismiss_on_escape(root, &focus, dismiss);
         }
         let panel_id = ElementId::Name(format!("{id}::panel").into());
         root.with_spring(

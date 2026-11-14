@@ -20,10 +20,13 @@ mod icons;
 mod loading;
 mod menu;
 mod navigation;
+mod overlays;
 mod progress;
+mod ripple;
 mod selection;
 mod sheet;
 mod slider;
+mod slider_ext;
 mod split_button;
 mod tabs;
 mod text_field;
@@ -43,10 +46,14 @@ pub use icons::*;
 pub use loading::*;
 pub use menu::*;
 pub use navigation::*;
+pub use overlays::*;
 pub use progress::*;
+#[allow(unused_imports)]
+pub(crate) use ripple::*;
 pub use selection::*;
 pub use sheet::*;
 pub use slider::*;
+pub use slider_ext::*;
 pub use split_button::*;
 pub use tabs::*;
 pub use text_field::*;
@@ -57,14 +64,40 @@ use std::rc::Rc;
 
 use gpui::{
     App, ClickEvent, Div, Entity, InteractiveElement, MouseButton, SharedString, Stateful, Window,
+    actions,
 };
 
-/// テーマを登録する
+actions!(m3_focus, [FocusNext, FocusPrev]);
+
+/// テーマを登録し、キー操作（Tab / Shift+Tab でフォーカス移動）を有効にする
 pub fn init(cx: &mut App, brightness: Brightness) {
     cx.set_global(Theme::new(brightness));
     bind_text_field_keys(cx);
+    cx.bind_keys([
+        gpui::KeyBinding::new("tab", FocusNext, None),
+        gpui::KeyBinding::new("shift-tab", FocusPrev, None),
+    ]);
+    // アクションはウィンドウの更新中に呼ばれるので、更新が終わってからフォーカスを動かす
+    cx.on_action(|_: &FocusNext, cx| move_focus(cx, true));
+    cx.on_action(|_: &FocusPrev, cx| move_focus(cx, false));
 }
 
+fn move_focus(cx: &mut App, forward: bool) {
+    let Some(window) = cx.active_window() else {
+        return;
+    };
+    cx.defer(move |cx| {
+        window
+            .update(cx, |_, window, cx| {
+                if forward {
+                    window.focus_next(cx)
+                } else {
+                    window.focus_prev(cx)
+                }
+            })
+            .ok();
+    });
+}
 /// テーマを切り替える（全ウィンドウを再描画）
 pub fn set_brightness(cx: &mut App, brightness: Brightness) {
     let dynamic = cx.m3().dynamic;

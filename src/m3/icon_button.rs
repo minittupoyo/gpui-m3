@@ -10,7 +10,8 @@ use gpui::{
 
 use super::{
     ActiveTheme, ButtonShape, ClickHandler, ComponentSize, Icon, IconName, Theme,
-    button_metrics, resolve_round, state, state_layer, track_press, transparent, use_pressed,
+    button_metrics, resolve_round, ripple_overlay, state, state_layer, track_press, track_ripple,
+    transparent, use_pressed, use_ripple,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -212,8 +213,7 @@ impl RenderOnce for IconButton {
             .justify_center()
             .w(w)
             .h(m.height)
-            .bg(bg)
-            .child(Icon::new(icon).size(icon_size).color(fg));
+            .bg(bg);
 
         if let Some(b) = border {
             el = match m.outline {
@@ -227,13 +227,16 @@ impl RenderOnce for IconButton {
         if !self.disabled {
             el = el
                 .cursor_pointer()
-                .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)))
-                .active(move |s| s.bg(state_layer(bg, fg, state::PRESSED)));
+                .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)));
+            let ripple = use_ripple(&self.id, window, cx);
+            el = el.child(ripple_overlay(&ripple, fg, gpui::Corners::all(radius)));
+            el = track_ripple(el, &ripple);
             el = track_press(el, &pressed_state);
             if let Some(handler) = self.on_click.clone() {
                 el = el.on_click(move |e, w, cx| handler(e, w, cx));
             }
         }
+        el = el.child(Icon::new(icon).size(icon_size).color(fg));
 
         el.with_spring(
             ElementId::Name(format!("{}::radius", self.id).into()),

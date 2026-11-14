@@ -8,7 +8,10 @@ use gpui::{
     prelude::*,
 };
 
-use super::{ActiveTheme, ClickHandler, StyledExt, shape, state, state_layer};
+use super::{
+    ActiveTheme, ClickHandler, StyledExt, ripple_overlay, shape, state, state_layer, track_ripple,
+    use_ripple,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CardVariant {
@@ -148,9 +151,13 @@ impl ParentElement for Card {
 }
 
 impl RenderOnce for Card {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let c = &theme.colors;
+        let ripple = self
+            .on_click
+            .is_some()
+            .then(|| use_ripple(&self.id, window, cx));
         let (bg, elev, border) = match self.variant {
             CardVariant::Elevated => (c.surface_container_low, 1, None),
             CardVariant::Filled => (c.surface_container_highest, 0, None),
@@ -160,7 +167,7 @@ impl RenderOnce for Card {
         let shadow = c.shadow;
 
         let mut el = div()
-            .id(ElementId::Name(self.id))
+            .id(ElementId::Name(self.id.clone()))
             .flex()
             .flex_col()
             .rounded(CARD_RADIUS)
@@ -179,8 +186,10 @@ impl RenderOnce for Card {
                     s.bg(state_layer(bg, fg, state::HOVER))
                         .m3_elevation(hover_elev, shadow)
                 })
-                .active(move |s| s.bg(state_layer(bg, fg, state::PRESSED)))
                 .on_click(move |e, w, cx| h(e, w, cx));
+        }
+        if let Some(r) = ripple.as_ref() {
+            el = track_ripple(el, r);
         }
         // 枠線の内側に収まるので、角丸も枠線の分だけ小さくする
         if let Some(media) = self.media {
@@ -191,6 +200,11 @@ impl RenderOnce for Card {
             };
             el = el.child(media.radius(inner));
         }
-        el.child(self.base)
+        el = el.child(self.base);
+        // 波紋はメディアの上にも広がるよう、最後の子にする
+        if let Some(r) = ripple.as_ref() {
+            el = el.child(ripple_overlay(r, fg, gpui::Corners::all(CARD_RADIUS)));
+        }
+        el
     }
 }

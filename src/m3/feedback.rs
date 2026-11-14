@@ -1,12 +1,14 @@
 //! Badge / Divider / Tooltip / Snackbar / Dialog / ListItem
 
+use gpui::AnimationExt as _;
 use gpui::{
     AnyElement, AnyView, App, Context, ElementId, IntoElement, Render, RenderOnce, SharedString,
-    Window, div, prelude::*, px,
+    SpringAnimation, Window, div, prelude::*, px,
 };
 
 use super::{
-    ActiveTheme, ClickHandler, Icon, IconName, StyledExt, TypeScale, shape, state, state_layer,
+    ActiveTheme, ClickHandler, Icon, IconName, StyledExt, TypeScale, dismiss_on_escape,
+    ripple_overlay, shape, state, state_layer, track_ripple, use_popup_focus, use_ripple,
 };
 
 // ---------------------------------------------------------------------------
@@ -218,6 +220,7 @@ pub struct Dialog {
     headline: SharedString,
     body: SharedString,
     actions: Vec<AnyElement>,
+    on_dismiss: Option<std::rc::Rc<dyn Fn(&mut Window, &mut App)>>,
 }
 
 impl Dialog {
@@ -227,7 +230,13 @@ impl Dialog {
             headline: headline.into(),
             body: body.into(),
             actions: vec![],
+            on_dismiss: None,
         }
+    }
+    /// Esc キーで閉じるときに呼ばれる
+    pub fn on_dismiss(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_dismiss = Some(std::rc::Rc::new(f));
+        self
     }
     pub fn icon(mut self, icon: IconName) -> Self {
         self.icon = Some(icon);
@@ -240,12 +249,13 @@ impl Dialog {
 }
 
 impl RenderOnce for Dialog {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let centered = self.icon.is_some();
-        let mut el = div()
-            .id("m3-dialog")
+        // 開いたらフォーカスを持ち、Esc で閉じる
+        let focus = use_popup_focus(&"m3-dialog".into(), window, cx);
+        let mut el = dismiss_on_escape(div().id("m3-dialog"), &focus, self.on_dismiss.clone())
             .occlude()
             .flex()
             .flex_col()
@@ -289,6 +299,114 @@ impl RenderOnce for Dialog {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Dialog overlay / Snackbar host（出入りのアニメーション付き）
+// ---------------------------------------------------------------------------
+
+/// ダイアログをスクリム付きで画面中央に出す。閉じるアニメーションのため
+/// 画面ルートの最後の子として**常に配置**し、`open` で開閉する。
+/// スクリムのクリックと Esc で閉じる。
+#[derive(IntoElement)]
+pub struct DialogOverlay {
+    id: SharedString,
+    open: bool,
+    dialog: Dialog,
+    on_dismiss: Option<std::rc::Rc<dyn Fn(&mut Window, &mut App)>>,
+}
+
+impl DialogOverlay {
+    pub fn new(id: impl Into<SharedString>, open: bool, dialog: Dialog) -> Self {
+        Self {
+            id: id.into(),
+            open,
+            dialog,
+            on_dismiss: None,
+        }
+    }
+    pub fn on_dismiss(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_dismiss = Some(std::rc::Rc::new(f));
+        self
+    }
+}
+
+impl RenderOnce for DialogOverlay {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.m3().clone();
+        let scrim = theme.colors.scrim;
+        let open = self.open;
+        let id = self.id;
+        let dismiss = self.on_dismiss.clone();
+        // Esc も同じ処理で閉じる
+        let mut dialog = self.dialog;
+        if let Some(d) = self.on_dismiss {
+            dialog = dialog.on_dismiss(move |w, cx| d(w, cx));
+        }
+
+        let mut root = div()
+            .id(ElementId::Name(format!("{id}::scrim").into()))
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_center()
+            .justify_center();
+        if let Some(d) = dismiss {
+            root = root.on_click(move |_, w, cx| d(w, cx));
+        }
+        root.with_spring(
+            ElementId::Name(format!("{id}::open").into()),
+            SpringAnimation::new(theme.motion.default_spatial).to(if open { 1. } else { 0. }),
+            move |el, t| {
+                if !open && t < 0.01 {
+                    return el.hidden();
+                }
+                let tc = t.clamp(0., 1.);
+                el.bg(scrim.opacity(0.32 * tc)).child(
+                    div()
+                        .opacity(tc)
+                        .relative()
+                        .top(px((1. - t) * 28.))
+                        .child(dialog),
+                )
+            },
+        )
+    }
+}
+
+/// スナックバーの出入り（下からせり上がってフェードイン）。
+/// 位置は親で決め、`Snackbar` をこのホストで包んで常に配置する。
+#[derive(IntoElement)]
+pub struct SnackbarHost {
+    id: SharedString,
+    visible: bool,
+    snackbar: Snackbar,
+}
+
+impl SnackbarHost {
+    pub fn new(id: impl Into<SharedString>, visible: bool, snackbar: Snackbar) -> Self {
+        Self {
+            id: id.into(),
+            visible,
+            snackbar,
+        }
+    }
+}
+
+impl RenderOnce for SnackbarHost {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.m3().clone();
+        let visible = self.visible;
+        div().relative().child(self.snackbar).with_spring(
+            ElementId::Name(format!("{}::visible", self.id).into()),
+            SpringAnimation::new(theme.motion.default_spatial).to(if visible { 1. } else { 0. }),
+            move |el, t| {
+                if !visible && t < 0.01 {
+                    return el.hidden();
+                }
+                el.opacity(t.clamp(0., 1.)).top(px((1. - t) * 40.))
+            },
+        )
+    }
+}
 // ---------------------------------------------------------------------------
 // List item
 // ---------------------------------------------------------------------------
@@ -336,11 +454,15 @@ impl ListItem {
 }
 
 impl RenderOnce for ListItem {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let bg = gpui::hsla(0., 0., 0., 0.);
         let fg = c.on_surface;
+        let ripple = self
+            .on_click
+            .is_some()
+            .then(|| use_ripple(&self.id, window, cx));
         let mut el = div()
             .id(ElementId::Name(self.id))
             .flex()
@@ -349,6 +471,10 @@ impl RenderOnce for ListItem {
             .px(px(16.))
             .py(px(8.))
             .min_h(px(if self.supporting.is_some() { 72. } else { 56. }));
+        if let Some(r) = ripple.as_ref() {
+            el = el.child(ripple_overlay(r, fg, gpui::Corners::all(px(0.))));
+            el = track_ripple(el, r);
+        }
         if let Some(l) = self.leading {
             el = el.child(l);
         }
@@ -378,7 +504,6 @@ impl RenderOnce for ListItem {
             el = el
                 .cursor_pointer()
                 .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)))
-                .active(move |s| s.bg(state_layer(bg, fg, state::PRESSED)))
                 .on_click(move |e, w, cx| h(e, w, cx));
         }
         el

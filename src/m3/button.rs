@@ -10,7 +10,8 @@ use gpui::{
 
 use super::{
     ActiveTheme, ButtonShape, ClickHandler, ComponentSize, Icon, IconName, StyledExt, Theme,
-    TypeScale, state, state_layer, track_press, transparent, use_pressed,
+    TypeScale, ripple_overlay, state, state_layer, track_press, track_ripple, transparent,
+    use_pressed, use_ripple,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -337,7 +338,11 @@ impl RenderOnce for Button {
                         s
                     }
                 })
-                .active(move |s| s.bg(state_layer(container, content, state::PRESSED)));
+                ;
+            // 波紋は最初の子（後続のアイコン・ラベルが上に描かれる）
+            let ripple = use_ripple(&self.id, window, cx);
+            el = el.child(ripple_overlay(&ripple, content, gpui::Corners::all(radius)));
+            el = track_ripple(el, &ripple);
             el = track_press(el, &pressed_state);
             if let Some(handler) = self.on_click.clone() {
                 el = el.on_click(move |e, w, cx| handler(e, w, cx));

@@ -8,8 +8,8 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ClickHandler, Icon, IconName, StyledExt, TypeScale, shape, state, state_layer,
-    transparent,
+    ActiveTheme, ClickHandler, Icon, IconName, StyledExt, TypeScale, ripple_overlay, shape, state,
+    state_layer, track_ripple, transparent, use_ripple,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -88,7 +88,7 @@ impl Chip {
 }
 
 impl RenderOnce for Chip {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let selected = self.selected && matches!(self.kind, ChipKind::Filter | ChipKind::Input);
@@ -140,6 +140,11 @@ impl RenderOnce for Chip {
         if self.elevated && !self.disabled {
             el = el.m3_elevation(1, c.shadow);
         }
+        if !self.disabled {
+            let ripple = use_ripple(&self.id, window, cx);
+            el = el.child(ripple_overlay(&ripple, fg, gpui::Corners::all(shape::SMALL)));
+            el = track_ripple(el, &ripple);
+        }
         if let Some(icon) = leading {
             el = el.child(Icon::new(icon).size(px(18.)).color(
                 if self.disabled { fg } else if selected { fg } else { icon_color },
@@ -169,8 +174,7 @@ impl RenderOnce for Chip {
         if !self.disabled {
             el = el
                 .cursor_pointer()
-                .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)))
-                .active(move |s| s.bg(state_layer(bg, fg, state::PRESSED)));
+                .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)));
             if let Some(h) = self.on_click {
                 el = el.on_click(move |e, w, cx| h(e, w, cx));
             }

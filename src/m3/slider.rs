@@ -3,12 +3,12 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, Bounds, Corners, DispatchPhase, ElementId, IntoElement, MouseButton, MouseMoveEvent,
-    MouseUpEvent, Pixels, RenderOnce, SharedString, Window, canvas, div, fill, point, prelude::*,
-    px, relative, size,
+    App, BorderStyle, Bounds, Corners, DispatchPhase, Edges, ElementId, IntoElement, MouseButton,
+    MouseMoveEvent, MouseUpEvent, Pixels, RenderOnce, SharedString, Window, canvas, div, fill,
+    point, prelude::*, px, quad, relative, size,
 };
 
-use super::{ActiveTheme, ChangeHandler, StyledExt, TypeScale, f, paint_dot};
+use super::{ActiveTheme, ChangeHandler, StyledExt, TypeScale, f, paint_dot, use_ripple};
 
 #[derive(Default)]
 struct SliderState {
@@ -112,6 +112,8 @@ impl RenderOnce for Slider {
         let disabled = self.disabled;
         let paint_state = state.clone();
         let prepaint_state = state.clone();
+        let ripple = use_ripple(&self.id, window, cx);
+        let ring_focus = ripple.focus().clone();
 
         let drawing = canvas(
             move |b, _, cx| {
@@ -193,6 +195,20 @@ impl RenderOnce for Slider {
                     )
                     .corner_radii(px(handle_w / 2.)),
                 );
+                // キーボードでフォーカスしているときは、ハンドルの周りに枠を出す
+                if !disabled && ring_focus.is_focused(window) && window.last_input_was_keyboard() {
+                    window.paint_quad(quad(
+                        Bounds::new(
+                            point(px(x - 9.), px(cy - handle_h / 2. - 4.)),
+                            size(px(18.), px(handle_h + 8.)),
+                        ),
+                        px(9.),
+                        gpui::transparent_black(),
+                        Edges::all(px(2.)),
+                        handle,
+                        BorderStyle::Solid,
+                    ));
+                }
 
                 if disabled {
                     return;
@@ -238,6 +254,27 @@ impl RenderOnce for Slider {
             .child(drawing);
 
         if !self.disabled {
+            // 矢印キー・Home/End・PageUp/Down で値を動かす
+            let key_change = self.on_change.clone();
+            let value = self.value;
+            el = el
+                .track_focus(ripple.focus())
+                .on_key_down(move |e, window, cx| {
+                    let unit = step.unwrap_or((max - min) / 20.);
+                    let next = match e.keystroke.key.as_str() {
+                        "left" | "down" => value - unit,
+                        "right" | "up" => value + unit,
+                        "pagedown" => value - unit * 5.,
+                        "pageup" => value + unit * 5.,
+                        "home" => min,
+                        "end" => max,
+                        _ => return,
+                    };
+                    cx.stop_propagation();
+                    if let Some(h) = key_change.as_ref() {
+                        h(next.clamp(min, max), window, cx);
+                    }
+                });
             let st = state.clone();
             let on_change = self.on_change.clone();
             el = el

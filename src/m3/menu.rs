@@ -18,8 +18,8 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ChangeHandler, ClickHandler, Icon, IconName, StyledExt, TypeScale, shape, state,
-    state_layer, transparent,
+    ActiveTheme, ChangeHandler, ClickHandler, Icon, IconName, StyledExt, TypeScale, ripple_overlay,
+    shape, state, state_layer, track_ripple, transparent, use_popup_focus, use_ripple,
 };
 
 type DismissHandler = Rc<dyn Fn(&mut Window, &mut App)>;
@@ -132,7 +132,7 @@ impl Menu {
 }
 
 impl RenderOnce for Menu {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let (bg, fg, icon_fg, sel_bg, sel_fg, muted) = if self.vibrant {
@@ -169,7 +169,29 @@ impl RenderOnce for Menu {
             .text_color(fg)
             .m3_elevation(3, c.shadow);
         if let Some(d) = self.on_dismiss.clone() {
-            list = list.on_mouse_down_out(move |_, w, cx| d(w, cx));
+            list = list.on_mouse_down_out({
+                let d = d.clone();
+                move |_, w, cx| d(w, cx)
+            });
+            // 開いたらフォーカスを持ち、Esc で閉じ、↑↓ で項目を移動する
+            let focus = use_popup_focus(&self.id, window, cx);
+            list = list.track_focus(&focus).on_key_down(move |e, window, cx| {
+                match e.keystroke.key.as_str() {
+                    "escape" => {
+                        cx.stop_propagation();
+                        d(window, cx);
+                    }
+                    "down" => {
+                        cx.stop_propagation();
+                        window.focus_next(cx);
+                    }
+                    "up" => {
+                        cx.stop_propagation();
+                        window.focus_prev(cx);
+                    }
+                    _ => {}
+                }
+            });
         }
 
         for (i, entry) in self.entries.into_iter().enumerate() {
@@ -215,6 +237,12 @@ impl RenderOnce for Menu {
                         .rounded(shape::MEDIUM)
                         .bg(item_bg)
                         .text_color(item_fg);
+                    if !item.disabled {
+                        let rid: SharedString = format!("{}-{i}", self.id).into();
+                        let ripple = use_ripple(&rid, window, cx);
+                        row = row.child(ripple_overlay(&ripple, item_fg, gpui::Corners::all(shape::MEDIUM)));
+                        row = track_ripple(row, &ripple);
+                    }
                     if let Some(icon) = item.icon {
                         row = row.child(Icon::new(icon).size(px(20.)).color(item_icon));
                     } else if item.selected {
@@ -246,8 +274,7 @@ impl RenderOnce for Menu {
                     if !item.disabled {
                         row = row
                             .cursor_pointer()
-                            .hover(move |s| s.bg(state_layer(item_bg, item_fg, state::HOVER)))
-                            .active(move |s| s.bg(state_layer(item_bg, item_fg, state::PRESSED)));
+                            .hover(move |s| s.bg(state_layer(item_bg, item_fg, state::HOVER)));
                         let handler = item.on_click.clone();
                         let dismiss = self.on_dismiss.clone();
                         row = row.on_click(move |e, w, cx| {
