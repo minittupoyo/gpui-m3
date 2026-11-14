@@ -77,6 +77,8 @@ fn nav_item(
         (true, Some(i)) => i,
         _ => item.icon,
     };
+    // 選択中は、別のアイコンの指定が無ければ塗りつぶし版にする
+    let filled = selected && item.selected_icon.is_none();
 
     let pill = div()
         .absolute()
@@ -108,9 +110,12 @@ fn nav_item(
         .group_hover(group.clone(), move |s| s.bg(layer))
         .child(pill)
         .child(
-            div()
-                .relative()
-                .child(Icon::new(icon).size(px(24.)).color(icon_color)),
+            div().relative().child(
+                Icon::new(icon)
+                    .filled(filled)
+                    .size(px(24.))
+                    .color(icon_color),
+            ),
         );
 
     if let Some(badge) = item.badge {
@@ -166,6 +171,8 @@ fn nav_item_expanded(
         (true, Some(i)) => i,
         _ => item.icon,
     };
+    // 選択中は、別のアイコンの指定が無ければ塗りつぶし版にする
+    let filled = selected && item.selected_icon.is_none();
 
     // 選択インジケーター（フェードイン）
     let indicator = div()
@@ -200,7 +207,7 @@ fn nav_item_expanded(
         .child(
             div()
                 .relative()
-                .child(Icon::new(icon).size(px(24.)).color(fg)),
+                .child(Icon::new(icon).filled(filled).size(px(24.)).color(fg)),
         )
         .child(
             div()

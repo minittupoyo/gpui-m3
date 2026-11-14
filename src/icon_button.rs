@@ -204,6 +204,7 @@ impl RenderOnce for IconButton {
             (Some(true), Some(sel)) => sel,
             _ => self.icon,
         };
+        let filled = self.selected == Some(true) && self.selected_icon.is_none();
 
         let mut el = div()
             .id(ElementId::Name(self.id.clone()))
@@ -236,7 +237,7 @@ impl RenderOnce for IconButton {
                 el = el.on_click(move |e, w, cx| handler(e, w, cx));
             }
         }
-        el = el.child(Icon::new(icon).size(icon_size).color(fg));
+        el = el.child(Icon::new(icon).filled(filled).size(icon_size).color(fg));
 
         el.with_spring(
             ElementId::Name(format!("{}::radius", self.id).into()),

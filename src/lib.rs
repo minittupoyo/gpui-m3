@@ -74,6 +74,7 @@ mod sheet;
 mod slider;
 mod slider_ext;
 mod split_button;
+mod symbols;
 mod tabs;
 mod text_field;
 mod theme;

@@ -115,6 +115,7 @@ fn render_action(
         (true, Some(i)) => i,
         _ => action.icon,
     };
+    let filled = selected && action.selected_icon.is_none();
     let handler = action.on_click.clone();
     let tip = action.tooltip.clone();
     let eid = ElementId::Name(id.clone().into());
@@ -152,7 +153,7 @@ fn render_action(
             el.bg(bg)
                 .hover(move |s| s.bg(state_layer(bg, color, state::HOVER)))
                 .child(ripple_overlay(&ripple, color, gpui::Corners::all(radius)))
-                .child(Icon::new(icon).size(px(24.)).color(color))
+                .child(Icon::new(icon).filled(filled).size(px(24.)).color(color))
         },
     )
     .into_any_element()

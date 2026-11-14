@@ -154,6 +154,7 @@ impl RenderOnce for NavigationDrawer {
                     } else {
                         item.icon
                     };
+                    let filled = selected && item.selected_icon.is_none();
                     let on_select = self.on_select.clone();
                     let close = close.clone();
                     let hover = fg.opacity(state::HOVER);
@@ -172,7 +173,7 @@ impl RenderOnce for NavigationDrawer {
                         .cursor_pointer()
                         .when(selected, |d| d.bg(c.secondary_container))
                         .hover(move |s| s.bg(hover))
-                        .child(Icon::new(icon).size(px(24.)).color(fg))
+                        .child(Icon::new(icon).filled(filled).size(px(24.)).color(fg))
                         .child(div().flex_1().truncate().child(item.label))
                         .on_click(move |_, w, cx| {
                             if let Some(h) = &on_select {
