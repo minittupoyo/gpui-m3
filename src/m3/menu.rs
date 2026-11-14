@@ -4,6 +4,7 @@
 //! - [`DropdownMenu`]: トリガーをクリックすると開く
 //! - [`ContextMenuArea`]: 右クリックした位置に開く
 //! - [`Select`]: Exposed dropdown（選択式フィールド）
+//! - [`MenuItem::submenu`]: サブメニュー（ホバー・クリック・→キーで右に開く）
 
 use std::{
     rc::Rc,
@@ -36,6 +37,7 @@ pub struct MenuItem {
     selected: bool,
     disabled: bool,
     on_click: Option<ClickHandler>,
+    submenu: Option<Box<Menu>>,
 }
 
 impl MenuItem {
@@ -48,7 +50,13 @@ impl MenuItem {
             selected: false,
             disabled: false,
             on_click: None,
+            submenu: None,
         }
+    }
+    /// 右に開くサブメニュー（右端に ▸ を表示。項目自体のクリックでは閉じない）
+    pub fn submenu(mut self, menu: Menu) -> Self {
+        self.submenu = Some(Box::new(menu));
+        self
     }
     pub fn icon(mut self, icon: IconName) -> Self {
         self.icon = Some(icon);
@@ -91,6 +99,19 @@ pub struct Menu {
     vibrant: bool,
     min_width: Pixels,
     on_dismiss: Option<DismissHandler>,
+    /// サブメニューとして描画される（外側クリックの判定は親が行う）
+    nested: bool,
+    /// ネストの深さ（ルート = 0）と、ルートのサブメニュー状態
+    depth: usize,
+    root_subs: Option<gpui::Entity<SubState>>,
+    on_back: Option<DismissHandler>,
+}
+
+#[derive(Default)]
+struct SubState {
+    open: Option<usize>,
+    /// 深さごとの、開いているサブメニューの範囲（ルートの外側クリック判定に使う）
+    rects: Vec<Option<Bounds<Pixels>>>,
 }
 
 impl Menu {
@@ -101,6 +122,10 @@ impl Menu {
             vibrant: false,
             min_width: px(112.),
             on_dismiss: None,
+            nested: false,
+            depth: 0,
+            root_subs: None,
+            on_back: None,
         }
     }
     pub fn item(mut self, item: MenuItem) -> Self {
@@ -122,6 +147,11 @@ impl Menu {
     }
     pub fn min_width(mut self, w: Pixels) -> Self {
         self.min_width = w;
+        self
+    }
+    fn nested_in(mut self, dismiss: Option<DismissHandler>) -> Self {
+        self.nested = true;
+        self.on_dismiss = dismiss;
         self
     }
     /// 項目クリック・外側クリックで呼ばれる
@@ -168,11 +198,30 @@ impl RenderOnce for Menu {
             .bg(bg)
             .text_color(fg)
             .m3_elevation(3, c.shadow);
+        let subs = window.use_keyed_state(
+            SharedString::from(format!("{}::subs", self.id)),
+            cx,
+            |_, _| SubState::default(),
+        );
+        let nested = self.nested;
+        let depth = self.depth;
+        let root_subs = self.root_subs.clone().unwrap_or_else(|| subs.clone());
+        let on_back = self.on_back.clone();
         if let Some(d) = self.on_dismiss.clone() {
-            list = list.on_mouse_down_out({
-                let d = d.clone();
-                move |_, w, cx| d(w, cx)
-            });
+            if !nested {
+                let guard = root_subs.clone();
+                list = list.on_mouse_down_out({
+                    let d = d.clone();
+                    move |e, w, cx| {
+                        // 開いているサブメニュー内のクリックは「外側」ではない
+                        let s = guard.read(cx);
+                        if s.rects.iter().flatten().any(|b| b.contains(&e.position)) {
+                            return;
+                        }
+                        d(w, cx)
+                    }
+                });
+            }
             // 開いたらフォーカスを持ち、Esc で閉じ、↑↓ で項目を移動する
             let focus = use_popup_focus(&self.id, window, cx);
             list = list.track_focus(&focus).on_key_down(move |e, window, cx| {
@@ -189,11 +238,18 @@ impl RenderOnce for Menu {
                         cx.stop_propagation();
                         window.focus_prev(cx);
                     }
+                    "left" => {
+                        if let Some(b) = on_back.as_ref() {
+                            cx.stop_propagation();
+                            b(window, cx);
+                        }
+                    }
                     _ => {}
                 }
             });
         }
 
+        let dismiss_all = self.on_dismiss.clone();
         for (i, entry) in self.entries.into_iter().enumerate() {
             match entry {
                 MenuEntry::Divider => {
@@ -214,7 +270,9 @@ impl RenderOnce for Menu {
                             .child(text),
                     );
                 }
-                MenuEntry::Item(item) => {
+                MenuEntry::Item(mut item) => {
+                    let submenu = item.submenu.take();
+                    let has_sub = submenu.is_some() && !item.disabled;
                     let (item_bg, item_fg, item_icon) = if item.disabled {
                         (
                             transparent(),
@@ -228,6 +286,7 @@ impl RenderOnce for Menu {
                     };
                     let mut row = div()
                         .id(ElementId::Name(format!("{}-{i}", self.id).into()))
+                        .relative()
                         .flex()
                         .items_center()
                         .gap(px(12.))
@@ -237,11 +296,13 @@ impl RenderOnce for Menu {
                         .rounded(shape::MEDIUM)
                         .bg(item_bg)
                         .text_color(item_fg);
+                    let mut row_focus = None;
                     if !item.disabled {
                         let rid: SharedString = format!("{}-{i}", self.id).into();
                         let ripple = use_ripple(&rid, window, cx);
                         row = row.child(ripple_overlay(&ripple, item_fg, gpui::Corners::all(shape::MEDIUM)));
                         row = track_ripple(row, &ripple);
+                        row_focus = Some(ripple.focus().clone());
                     }
                     if let Some(icon) = item.icon {
                         row = row.child(Icon::new(icon).size(px(20.)).color(item_icon));
@@ -271,20 +332,110 @@ impl RenderOnce for Menu {
                                 .child(t),
                         );
                     }
+                    if has_sub {
+                        row = row.child(Icon::new(IconName::ChevronRight).size(px(20.)).color(item_icon));
+                    }
                     if !item.disabled {
                         row = row
                             .cursor_pointer()
                             .hover(move |s| s.bg(state_layer(item_bg, item_fg, state::HOVER)));
+                        // ホバーでサブメニューを開閉する
+                        let hs = subs.clone();
+                        let hroot = root_subs.clone();
+                        row = row.on_hover(move |hovered, _, cx| {
+                            if *hovered {
+                                let want = has_sub.then_some(i);
+                                let mut changed = false;
+                                hs.update(cx, |s, cx| {
+                                    if s.open != want {
+                                        s.open = want;
+                                        changed = true;
+                                        cx.notify();
+                                    }
+                                });
+                                if changed {
+                                    hroot.update(cx, |r, _| r.rects.truncate(depth));
+                                }
+                            }
+                        });
+                        if has_sub {
+                            let ks = subs.clone();
+                            row = row.on_key_down(move |e, _, cx| {
+                                if e.keystroke.key == "right" {
+                                    cx.stop_propagation();
+                                    ks.update(cx, |s, cx| {
+                                        s.open = Some(i);
+                                        cx.notify();
+                                    });
+                                }
+                            });
+                        }
                         let handler = item.on_click.clone();
                         let dismiss = self.on_dismiss.clone();
+                        let cs = subs.clone();
                         row = row.on_click(move |e, w, cx| {
                             if let Some(h) = handler.as_ref() {
                                 h(e, w, cx);
                             }
-                            if let Some(d) = dismiss.as_ref() {
+                            if has_sub {
+                                cs.update(cx, |s, cx| {
+                                    s.open = Some(i);
+                                    cx.notify();
+                                });
+                            } else if let Some(d) = dismiss.as_ref() {
                                 d(w, cx);
                             }
                         });
+                    }
+                    if let Some(sub) = submenu {
+                        if has_sub && subs.read(cx).open == Some(i) {
+                            let back_subs = subs.clone();
+                            let back_root = root_subs.clone();
+                            let measure = root_subs.clone();
+                            let mut menu = (*sub).nested_in(dismiss_all.clone());
+                            menu.depth = depth + 1;
+                            menu.root_subs = Some(root_subs.clone());
+                            menu.on_back = Some(Rc::new(move |w, cx| {
+                                back_subs.update(cx, |s, cx| {
+                                    s.open = None;
+                                    cx.notify();
+                                });
+                                back_root.update(cx, |r, _| r.rects.truncate(depth));
+                                if let Some(f) = row_focus.as_ref() {
+                                    w.focus(f, cx);
+                                }
+                            }));
+                            row = row.child(
+                                div().absolute().top(px(-4.)).left(relative(1.)).child(
+                                    deferred(
+                                        anchored()
+                                            .anchor(Anchor::TopLeft)
+                                            .snap_to_window_with_margin(px(8.))
+                                            .child(
+                                                div()
+                                                    .relative()
+                                                    .child(
+                                                        canvas(
+                                                            move |b, _, cx| {
+                                                                measure.update(cx, |s, _| {
+                                                                    if s.rects.len() <= depth {
+                                                                        s.rects.resize(depth + 1, None);
+                                                                    }
+                                                                    s.rects[depth] = Some(b);
+                                                                })
+                                                            },
+                                                            |_, _, _, _| {},
+                                                        )
+                                                        .absolute()
+                                                        .size_full(),
+                                                    )
+                                                    .child(menu),
+                                            ),
+                                    )
+                                    .priority(2),
+                                ),
+                            );
+                        }
                     }
                     list = list.child(row);
                 }

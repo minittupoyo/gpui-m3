@@ -1135,7 +1135,20 @@ impl Gallery {
             .item(MenuItem::new("コピー").icon(IconName::ContentCopy).trailing_text("Ctrl+C").on_click(Self::log(cx, "コピー")))
             .item(MenuItem::new("貼り付け").icon(IconName::ContentPaste).trailing_text("Ctrl+V").on_click(Self::log(cx, "貼り付け")))
             .divider()
-            .item(MenuItem::new("共有").icon(IconName::Share).on_click(Self::log(cx, "共有")))
+            .item(
+                MenuItem::new("共有").icon(IconName::Share).submenu(
+                    Menu::new("share-sub")
+                        .item(MenuItem::new("メールで送信").icon(IconName::Mail).on_click(Self::log(cx, "メールで送信")))
+                        .item(MenuItem::new("リンクをコピー").icon(IconName::ContentCopy).on_click(Self::log(cx, "リンクをコピー")))
+                        .item(
+                            MenuItem::new("その他").icon(IconName::MoreVert).submenu(
+                                Menu::new("share-sub2")
+                                    .item(MenuItem::new("ブックマーク").on_click(Self::log(cx, "ブックマーク")))
+                                    .item(MenuItem::new("印刷").on_click(Self::log(cx, "印刷"))),
+                            ),
+                        ),
+                ),
+            )
             .item(MenuItem::new("削除").icon(IconName::Delete).disabled(true));
 
         let sorts = ["名前", "更新日", "サイズ", "種類"];
