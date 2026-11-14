@@ -160,10 +160,7 @@ impl RenderOnce for ConnectedButtonGroup {
                 move |el, r| {
                     let l = if first { outer } else { r };
                     let rr = if last { outer } else { r };
-                    el.rounded_tl(l)
-                        .rounded_bl(l)
-                        .rounded_tr(rr)
-                        .rounded_br(rr)
+                    el.rounded_tl(l).rounded_bl(l).rounded_tr(rr).rounded_br(rr)
                 },
             ));
         }
@@ -279,8 +276,7 @@ impl RenderOnce for StandardButtonGroup {
                         *p = None;
                         cx.notify();
                     })
-                })
-                ;
+                });
             let ripple = use_ripple(&id, window, cx);
             btn = btn.child(ripple_overlay(&ripple, fg, gpui::Corners::all(radius)));
             btn = track_ripple(btn, &ripple);
@@ -297,13 +293,11 @@ impl RenderOnce for StandardButtonGroup {
                 |el, r| el.rounded(r),
             );
 
-            row = row.child(
-                div().h(m.height).flex_none().child(btn).with_spring(
-                    ElementId::Name(format!("{id}::width").into()),
-                    SpringAnimation::new(theme.motion.fast_spatial).to(width),
-                    |el, w| el.w(w),
-                ),
-            );
+            row = row.child(div().h(m.height).flex_none().child(btn).with_spring(
+                ElementId::Name(format!("{id}::width").into()),
+                SpringAnimation::new(theme.motion.fast_spatial).to(width),
+                |el, w| el.w(w),
+            ));
         }
         row
     }

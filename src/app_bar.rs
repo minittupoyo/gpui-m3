@@ -5,8 +5,8 @@
 //! - Medium / Large は大きなタイトルが縮んで上段に収まる
 
 use gpui::{
-    AnyElement, App, IntoElement, RenderOnce, ScrollHandle, SharedString, Window, div,
-    prelude::*, px,
+    AnyElement, App, IntoElement, RenderOnce, ScrollHandle, SharedString, Window, div, prelude::*,
+    px,
 };
 
 use super::{ActiveTheme, StyledExt, TypeScale};
@@ -135,7 +135,11 @@ impl RenderOnce for TopAppBar {
         };
 
         let centered = self.kind == AppBarKind::CenterAligned;
-        let top_sub = if flexible { None } else { self.subtitle.clone() };
+        let top_sub = if flexible {
+            None
+        } else {
+            self.subtitle.clone()
+        };
         let mut top = div()
             .relative()
             .h(px(collapsed_h))
@@ -165,7 +169,12 @@ impl RenderOnce for TopAppBar {
                     .child(small_title(self.title.clone(), top_sub)),
             );
         } else {
-            top = top.child(div().flex_1().min_w_0().child(small_title(self.title.clone(), top_sub)));
+            top = top.child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .child(small_title(self.title.clone(), top_sub)),
+            );
         }
         top = top.child(div().flex().items_center().children(self.actions));
 

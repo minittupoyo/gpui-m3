@@ -4,15 +4,14 @@ use std::rc::Rc;
 
 use gpui::AnimationExt as _;
 use gpui::{
-    App, ClickEvent, ElementId, Hsla, IntoElement, ParentElement, Pixels, RenderOnce,
-    SharedString, SpringAnimation, Styled, Window, div, prelude::*, px,
+    App, ClickEvent, ElementId, Hsla, IntoElement, ParentElement, Pixels, RenderOnce, SharedString,
+    SpringAnimation, Styled, Window, div, prelude::*, px,
 };
 
 use super::{
-    animate_elevation, elevation_f, track_hover, use_hover,
     ActiveTheme, ButtonShape, ClickHandler, ComponentSize, Icon, IconName, StyledExt, Theme,
-    TypeScale, ripple_overlay, state, state_layer, track_press, track_ripple, transparent,
-    use_pressed, use_ripple,
+    TypeScale, animate_elevation, elevation_f, ripple_overlay, state, state_layer, track_hover,
+    track_press, track_ripple, transparent, use_hover, use_pressed, use_ripple,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -276,7 +275,11 @@ impl Button {
 /// トグル選択時は形が反転する（丸→角、角→丸）
 pub(crate) fn resolve_round(shape: ButtonShape, selected: Option<bool>) -> bool {
     let round = shape == ButtonShape::Round;
-    if selected == Some(true) { !round } else { round }
+    if selected == Some(true) {
+        !round
+    } else {
+        round
+    }
 }
 
 impl RenderOnce for Button {
@@ -305,7 +308,11 @@ impl RenderOnce for Button {
         let shadow_color = theme.colors.shadow;
 
         let hover_state = use_hover(&self.id, window, cx);
-        let hover_elev = if elevation > 0 && !self.disabled { elevation as f32 + 1. } else { elevation as f32 };
+        let hover_elev = if elevation > 0 && !self.disabled {
+            elevation as f32 + 1.
+        } else {
+            elevation as f32
+        };
         let level = animate_elevation(
             &self.id,
             *hover_state.read(cx),

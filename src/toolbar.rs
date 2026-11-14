@@ -204,11 +204,9 @@ impl RenderOnce for DockedToolbar {
         for (i, item) in self.items.into_iter().enumerate() {
             bar = bar.child(match item {
                 ToolbarItem::Action(a) => {
-                    {
-                        let rid = format!("{}-{i}", self.id);
-                        let r = use_ripple(&rid.clone().into(), window, cx);
-                        render_action(&theme, r, rid, a, self.vibrant, false)
-                    }
+                    let rid = format!("{}-{i}", self.id);
+                    let r = use_ripple(&rid.clone().into(), window, cx);
+                    render_action(&theme, r, rid, a, self.vibrant, false)
                 }
                 ToolbarItem::Element(e) => e,
             });
@@ -295,17 +293,20 @@ impl RenderOnce for FloatingToolbar {
         for (i, item) in self.items.into_iter().enumerate() {
             bar = bar.child(match item {
                 ToolbarItem::Action(a) => {
-                    {
-                        let rid = format!("{}-{i}", self.id);
-                        let r = use_ripple(&rid.clone().into(), window, cx);
-                        render_action(&theme, r, rid, a, self.vibrant, vertical)
-                    }
+                    let rid = format!("{}-{i}", self.id);
+                    let r = use_ripple(&rid.clone().into(), window, cx);
+                    render_action(&theme, r, rid, a, self.vibrant, vertical)
                 }
                 ToolbarItem::Element(e) => e,
             });
         }
 
-        let mut group = div().flex().flex_none().items_center().gap(px(8.)).child(bar);
+        let mut group = div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap(px(8.))
+            .child(bar);
         if vertical {
             group = group.flex_col();
         }

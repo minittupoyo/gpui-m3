@@ -3,8 +3,7 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, ClickEvent, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*,
-    px,
+    App, ClickEvent, ElementId, IntoElement, RenderOnce, SharedString, Window, div, prelude::*, px,
 };
 
 use super::{
@@ -142,13 +141,21 @@ impl RenderOnce for Chip {
         }
         if !self.disabled {
             let ripple = use_ripple(&self.id, window, cx);
-            el = el.child(ripple_overlay(&ripple, fg, gpui::Corners::all(shape::SMALL)));
+            el = el.child(ripple_overlay(
+                &ripple,
+                fg,
+                gpui::Corners::all(shape::SMALL),
+            ));
             el = track_ripple(el, &ripple);
         }
         if let Some(icon) = leading {
-            el = el.child(Icon::new(icon).size(px(18.)).color(
-                if self.disabled { fg } else if selected { fg } else { icon_color },
-            ));
+            el = el.child(Icon::new(icon).size(px(18.)).color(if self.disabled {
+                fg
+            } else if selected {
+                fg
+            } else {
+                icon_color
+            }));
         }
         el = el.child(self.label);
         if has_trailing {

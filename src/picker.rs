@@ -69,7 +69,12 @@ impl Date {
     /// 「11月14日（土）」
     pub fn format_short(self) -> String {
         const W: [&str; 7] = ["日", "月", "火", "水", "木", "金", "土"];
-        format!("{}月{}日（{}）", self.month, self.day, W[self.weekday() as usize])
+        format!(
+            "{}月{}日（{}）",
+            self.month,
+            self.day,
+            W[self.weekday() as usize]
+        )
     }
 }
 
@@ -90,12 +95,21 @@ impl DateRange {
         match (self.start, self.end) {
             (Some(s), None) => {
                 if d < s {
-                    Self { start: Some(d), end: Some(s) }
+                    Self {
+                        start: Some(d),
+                        end: Some(s),
+                    }
                 } else {
-                    Self { start: Some(s), end: Some(d) }
+                    Self {
+                        start: Some(s),
+                        end: Some(d),
+                    }
                 }
             }
-            _ => Self { start: Some(d), end: None },
+            _ => Self {
+                start: Some(d),
+                end: None,
+            },
         }
     }
     /// 日数（両端を含む）。終了が未定なら 1
@@ -321,7 +335,10 @@ impl DateInput {
                 // 入力途中で警告が出ないよう、フォーカスが外れたときだけ知らせる
                 if blurred {
                     field.update(cx, |f, cx| {
-                        f.set_error(Some("日付の形式が正しくありません（yyyy/mm/dd）".into()), cx)
+                        f.set_error(
+                            Some("日付の形式が正しくありません（yyyy/mm/dd）".into()),
+                            cx,
+                        )
                     });
                 }
                 return;
@@ -350,7 +367,13 @@ impl DateInput {
                 }
             });
         });
-        Self { on: false, field, shared, synced: None, _sub: sub }
+        Self {
+            on: false,
+            field,
+            shared,
+            synced: None,
+            _sub: sub,
+        }
     }
 }
 
@@ -366,7 +389,11 @@ impl RenderOnce for DatePicker {
         let year_state = window.use_keyed_state(
             SharedString::from(format!("{}::yearview", self.id)),
             cx,
-            |_, _| YearView { open: false, pending: false, scroll: ScrollHandle::new() },
+            |_, _| YearView {
+                open: false,
+                pending: false,
+                scroll: ScrollHandle::new(),
+            },
         );
         let (year_open, year_scroll) = {
             let s = year_state.read(cx);
@@ -434,9 +461,13 @@ impl RenderOnce for DatePicker {
             .text_color(c.on_surface_variant)
             .child(format!("{y}年{m}月"))
             .child(
-                Icon::new(if year_open { IconName::ArrowDropUp } else { IconName::ArrowDropDown })
-                    .size(px(24.))
-                    .color(c.on_surface_variant),
+                Icon::new(if year_open {
+                    IconName::ArrowDropUp
+                } else {
+                    IconName::ArrowDropDown
+                })
+                .size(px(24.))
+                .color(c.on_surface_variant),
             )
             .on_click(move |_, _, cx| {
                 toggle.update(cx, |s, cx| {
@@ -488,19 +519,23 @@ impl RenderOnce for DatePicker {
                 let date = Date::new(y, m, d as u32);
                 // 範囲選択: 両端と、その間を結ぶ帯
                 let (lo, hi) = match self.range {
-                    Some(DateRange { start: Some(s), end }) => (Some(s), Some(end.unwrap_or(s))),
+                    Some(DateRange {
+                        start: Some(s),
+                        end,
+                    }) => (Some(s), Some(end.unwrap_or(s))),
                     _ => (None, None),
                 };
                 let is_edge = lo == Some(date) || hi == Some(date);
                 let multi = lo.is_some() && lo != hi;
                 let in_band = multi && lo.is_some_and(|l| date > l) && hi.is_some_and(|h| date < h);
                 let band_l = multi && (lo == Some(date) || (in_band && (col == 0 || d == 1)));
-                let band_r = multi && (hi == Some(date) || (in_band && (col == 6 || d == dim as i32)));
+                let band_r =
+                    multi && (hi == Some(date) || (in_band && (col == 6 || d == dim as i32)));
                 let band = multi && (in_band || is_edge);
                 let is_sel = self.selected == Some(date) || (self.range.is_some() && is_edge);
                 let is_today = self.today == Some(date);
-                let disabled = self.min.is_some_and(|mn| date < mn)
-                    || self.max.is_some_and(|mx| date > mx);
+                let disabled =
+                    self.min.is_some_and(|mn| date < mn) || self.max.is_some_and(|mx| date > mx);
                 let (bg, fg): (Option<Hsla>, Hsla) = if is_sel {
                     (Some(c.primary), c.on_primary)
                 } else if in_band {
@@ -519,9 +554,15 @@ impl RenderOnce for DatePicker {
                     .justify_center()
                     .rounded_full()
                     .m3_type(TypeScale::BodyLarge)
-                    .text_color(if disabled { theme.disabled_content() } else { fg })
+                    .text_color(if disabled {
+                        theme.disabled_content()
+                    } else {
+                        fg
+                    })
                     .when_some(bg, |d, b| d.bg(b))
-                    .when(is_today && !is_sel, |d| d.border_1().border_color(c.outline))
+                    .when(is_today && !is_sel, |d| {
+                        d.border_1().border_color(c.outline)
+                    })
                     .child(d.to_string());
                 if !disabled {
                     let hover = if is_sel { c.on_primary } else { c.on_surface };
@@ -632,7 +673,11 @@ impl RenderOnce for DatePicker {
                             div()
                                 .m3_type(TypeScale::LabelLarge)
                                 .text_color(c.on_surface_variant)
-                                .child(if self.range.is_some() { "期間を選択" } else { "日付を選択" }),
+                                .child(if self.range.is_some() {
+                                    "期間を選択"
+                                } else {
+                                    "日付を選択"
+                                }),
                         )
                         .child(
                             div()
@@ -640,36 +685,44 @@ impl RenderOnce for DatePicker {
                                 .flex()
                                 .items_center()
                                 .justify_between()
-                                .child(div()
-                                .m3_type(if self.range.is_some() {
-                                    TypeScale::HeadlineSmall
-                                } else {
-                                    TypeScale::HeadlineLarge
-                                })
-                                .child(match self.range {
-                                    Some(r) if r.start.is_some() => r.format_compact(),
-                                    Some(_) => "開始日 – 終了日".into(),
-                                    None => self
-                                        .selected
-                                        .map(|d| d.format_short())
-                                        .unwrap_or_else(|| "日付を選択".into()),
-                                }))
+                                .child(
+                                    div()
+                                        .m3_type(if self.range.is_some() {
+                                            TypeScale::HeadlineSmall
+                                        } else {
+                                            TypeScale::HeadlineLarge
+                                        })
+                                        .child(match self.range {
+                                            Some(r) if r.start.is_some() => r.format_compact(),
+                                            Some(_) => "開始日 – 終了日".into(),
+                                            None => self
+                                                .selected
+                                                .map(|d| d.format_short())
+                                                .unwrap_or_else(|| "日付を選択".into()),
+                                        }),
+                                )
                                 .when(can_input, |d| {
                                     let st = input_state.clone();
                                     d.child(
                                         IconButton::new(
                                             format!("{}-mode", self.id),
-                                            if input_on { IconName::CalendarMonth } else { IconName::Keyboard },
+                                            if input_on {
+                                                IconName::CalendarMonth
+                                            } else {
+                                                IconName::Keyboard
+                                            },
                                         )
-                                        .on_click(move |_, _, cx| {
-                                            st.update(cx, |s, cx| {
-                                                s.on = !s.on;
-                                                s.synced = None;
-                                                let f = s.field.clone();
-                                                f.update(cx, |f, cx| f.set_text("", cx));
-                                                cx.notify();
-                                            })
-                                        }),
+                                        .on_click(
+                                            move |_, _, cx| {
+                                                st.update(cx, |s, cx| {
+                                                    s.on = !s.on;
+                                                    s.synced = None;
+                                                    let f = s.field.clone();
+                                                    f.update(cx, |f, cx| f.set_text("", cx));
+                                                    cx.notify();
+                                                })
+                                            },
+                                        ),
                                     )
                                 }),
                         ),
@@ -744,7 +797,10 @@ impl TimePicker {
         self
     }
     /// `(時, 分, 操作完了)` — 完了はマウスを離したとき true
-    pub fn on_change(mut self, f: impl Fn((u32, u32, bool), &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(
+        mut self,
+        f: impl Fn((u32, u32, bool), &mut Window, &mut App) + 'static,
+    ) -> Self {
         self.on_change = Some(Rc::new(f));
         self
     }
@@ -793,51 +849,65 @@ impl TimeInput {
         let mut subs = vec![];
         for (is_hour, field) in [(true, hour_f.clone()), (false, min_f.clone())] {
             let sh = shared.clone();
-            subs.push(cx.subscribe(&field, move |_this, field, ev: &TextFieldEvent, cx| {
-                let TextFieldEvent::Changed(text) = ev else {
-                    return;
-                };
-                // 数字以外は取り除く
-                let clean: String = text.chars().filter(|c| c.is_ascii_digit()).take(2).collect();
-                if clean != text.as_ref() {
-                    field.update(cx, |f, cx| f.set_text(clean, cx));
-                    return;
-                }
-                if clean.is_empty() {
-                    field.update(cx, |f, cx| f.set_error(None, cx));
-                    return;
-                }
-                let n: u32 = clean.parse().unwrap_or(99);
-                let (hour, minute, is_24h, on_change) = {
-                    let s = sh.borrow();
-                    (s.hour, s.minute, s.is_24h, s.on_change.clone())
-                };
-                let is_pm = hour >= 12;
-                let (valid, msg, new_h, new_m) = if is_hour {
-                    if is_24h {
-                        (n <= 23, "0〜23", n, minute)
-                    } else {
-                        (
-                            (1..=12).contains(&n),
-                            "1〜12",
-                            n % 12 + if is_pm { 12 } else { 0 },
-                            minute,
-                        )
+            subs.push(
+                cx.subscribe(&field, move |_this, field, ev: &TextFieldEvent, cx| {
+                    let TextFieldEvent::Changed(text) = ev else {
+                        return;
+                    };
+                    // 数字以外は取り除く
+                    let clean: String = text
+                        .chars()
+                        .filter(|c| c.is_ascii_digit())
+                        .take(2)
+                        .collect();
+                    if clean != text.as_ref() {
+                        field.update(cx, |f, cx| f.set_text(clean, cx));
+                        return;
                     }
-                } else {
-                    (n <= 59, "0〜59", hour, n)
-                };
-                field.update(cx, |f, cx| f.set_error((!valid).then(|| msg.into()), cx));
-                if valid && (new_h, new_m) != (hour, minute) {
-                    call_later(cx, move |w, cx| {
-                        if let Some(h) = &on_change {
-                            h((new_h, new_m, true), w, cx);
+                    if clean.is_empty() {
+                        field.update(cx, |f, cx| f.set_error(None, cx));
+                        return;
+                    }
+                    let n: u32 = clean.parse().unwrap_or(99);
+                    let (hour, minute, is_24h, on_change) = {
+                        let s = sh.borrow();
+                        (s.hour, s.minute, s.is_24h, s.on_change.clone())
+                    };
+                    let is_pm = hour >= 12;
+                    let (valid, msg, new_h, new_m) = if is_hour {
+                        if is_24h {
+                            (n <= 23, "0〜23", n, minute)
+                        } else {
+                            (
+                                (1..=12).contains(&n),
+                                "1〜12",
+                                n % 12 + if is_pm { 12 } else { 0 },
+                                minute,
+                            )
                         }
-                    });
-                }
-            }));
+                    } else {
+                        (n <= 59, "0〜59", hour, n)
+                    };
+                    field.update(cx, |f, cx| f.set_error((!valid).then(|| msg.into()), cx));
+                    if valid && (new_h, new_m) != (hour, minute) {
+                        call_later(cx, move |w, cx| {
+                            if let Some(h) = &on_change {
+                                h((new_h, new_m, true), w, cx);
+                            }
+                        });
+                    }
+                }),
+            );
         }
-        Self { on: false, hour_f, min_f, shared, synced_h: None, synced_m: None, _subs: subs }
+        Self {
+            on: false,
+            hour_f,
+            min_f,
+            shared,
+            synced_h: None,
+            synced_m: None,
+            _subs: subs,
+        }
     }
 }
 
@@ -905,8 +975,16 @@ impl RenderOnce for TimePicker {
                 .items_center()
                 .justify_center()
                 .rounded(shape::SMALL)
-                .bg(if active { c.primary_container } else { c.surface_container_highest })
-                .text_color(if active { c.on_primary_container } else { c.on_surface })
+                .bg(if active {
+                    c.primary_container
+                } else {
+                    c.surface_container_highest
+                })
+                .text_color(if active {
+                    c.on_primary_container
+                } else {
+                    c.on_surface
+                })
                 .m3_type(TypeScale::DisplayLarge)
                 .cursor_pointer()
                 .child(label)
@@ -925,8 +1003,16 @@ impl RenderOnce for TimePicker {
                 .flex()
                 .items_center()
                 .justify_center()
-                .bg(if active { c.tertiary_container } else { transparent_c() })
-                .text_color(if active { c.on_tertiary_container } else { c.on_surface_variant })
+                .bg(if active {
+                    c.tertiary_container
+                } else {
+                    transparent_c()
+                })
+                .text_color(if active {
+                    c.on_tertiary_container
+                } else {
+                    c.on_surface_variant
+                })
                 .m3_type(TypeScale::TitleMedium)
                 .cursor_pointer()
                 .child(label)
@@ -1025,7 +1111,11 @@ impl RenderOnce for TimePicker {
             TimeMode::Minute => (minute as f32 / 60., R_OUTER),
             TimeMode::Hour => {
                 let i = (hour % 12) as f32 / 12.;
-                let r = if is_24h && (hour == 0 || hour > 12) { R_INNER } else { R_OUTER };
+                let r = if is_24h && (hour == 0 || hour > 12) {
+                    R_INNER
+                } else {
+                    R_OUTER
+                };
                 (i, r)
             }
         };
@@ -1118,7 +1208,10 @@ impl RenderOnce for TimePicker {
         for (label, v, frac, r) in items {
             let (x, y) = pos(frac, r);
             let selected = match mode {
-                TimeMode::Hour => v == hour % if is_24h { 24 } else { 12 } || (!is_24h && v == 12 && hour % 12 == 0),
+                TimeMode::Hour => {
+                    v == hour % if is_24h { 24 } else { 12 }
+                        || (!is_24h && v == 12 && hour % 12 == 0)
+                }
                 TimeMode::Minute => v == minute,
             };
             dial = dial.child(
@@ -1130,7 +1223,11 @@ impl RenderOnce for TimePicker {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .m3_type(if r < R_OUTER { TypeScale::BodyLarge } else { TypeScale::BodyLarge })
+                    .m3_type(if r < R_OUTER {
+                        TypeScale::BodyLarge
+                    } else {
+                        TypeScale::BodyLarge
+                    })
                     .text_color(if selected { on_primary } else { on_surface })
                     .child(label),
             );
@@ -1200,7 +1297,11 @@ impl RenderOnce for TimePicker {
                 div().flex().items_center().child(
                     IconButton::new(
                         format!("{}-mode", self.id),
-                        if input_on { IconName::Schedule } else { IconName::Keyboard },
+                        if input_on {
+                            IconName::Schedule
+                        } else {
+                            IconName::Keyboard
+                        },
                     )
                     .on_click(move |_, _, cx| {
                         input_state.update(cx, |s, cx| {
@@ -1312,7 +1413,10 @@ mod tests {
         assert_eq!(r(Date::new(2026, 12, 30), Date::new(2027, 1, 2)), Some(4));
         assert_eq!(r(Date::new(2024, 2, 28), Date::new(2024, 3, 1)), Some(3)); // 閏日をまたぐ
         assert_eq!(DateRange::default().days(), None);
-        assert_eq!(DateRange::new(Some(Date::new(2026, 1, 1)), None).days(), Some(1));
+        assert_eq!(
+            DateRange::new(Some(Date::new(2026, 1, 1)), None).days(),
+            Some(1)
+        );
     }
 
     #[test]

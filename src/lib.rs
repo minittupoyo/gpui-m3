@@ -115,8 +115,7 @@ use std::rc::Rc;
 
 use gpui::{
     App, ClickEvent, Div, Entity, InteractiveElement, MouseButton, SharedString, Stateful,
-    StatefulInteractiveElement, Window,
-    actions,
+    StatefulInteractiveElement, Window, actions,
 };
 
 actions!(m3_focus, [FocusNext, FocusPrev]);
@@ -220,11 +219,9 @@ pub enum ButtonShape {
 
 /// 要素ごとの「押されているか」状態を取得する
 pub(crate) fn use_pressed(id: &SharedString, window: &mut Window, cx: &mut App) -> Entity<bool> {
-    window.use_keyed_state(
-        SharedString::from(format!("{id}::pressed")),
-        cx,
-        |_, _| false,
-    )
+    window.use_keyed_state(SharedString::from(format!("{id}::pressed")), cx, |_, _| {
+        false
+    })
 }
 
 fn set_pressed(state: &Entity<bool>, value: bool, cx: &mut App) {
@@ -241,11 +238,15 @@ pub(crate) fn track_press(el: Stateful<Div>, state: &Entity<bool>) -> Stateful<D
     let down = state.clone();
     let up = state.clone();
     let out = state.clone();
-    el.on_mouse_down(MouseButton::Left, move |_, _, cx| set_pressed(&down, true, cx))
-        .on_mouse_up(MouseButton::Left, move |_, _, cx| set_pressed(&up, false, cx))
-        .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
-            set_pressed(&out, false, cx)
-        })
+    el.on_mouse_down(MouseButton::Left, move |_, _, cx| {
+        set_pressed(&down, true, cx)
+    })
+    .on_mouse_up(MouseButton::Left, move |_, _, cx| {
+        set_pressed(&up, false, cx)
+    })
+    .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
+        set_pressed(&out, false, cx)
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +289,10 @@ pub(crate) fn animate_elevation(
     let anim = window.use_keyed_state(
         SharedString::from(format!("{id}::elev")),
         cx,
-        move |_, _| ElevAnim { value: base, last: None },
+        move |_, _| ElevAnim {
+            value: base,
+            last: None,
+        },
     );
     let target = if hovered { hover } else { base };
     let reduce = cx.reduce_motion();
@@ -300,7 +304,11 @@ pub(crate) fn animate_elevation(
             a.last = None;
         } else {
             let now = std::time::Instant::now();
-            let dt = a.last.map(|t| (now - t).as_secs_f32()).unwrap_or(0.).min(0.05);
+            let dt = a
+                .last
+                .map(|t| (now - t).as_secs_f32())
+                .unwrap_or(0.)
+                .min(0.05);
             a.last = Some(now);
             // 時定数 70ms
             a.value += (target - a.value) * (1. - (-dt / 0.07).exp());

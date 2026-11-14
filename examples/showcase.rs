@@ -206,7 +206,10 @@ impl Showcase {
                         .rounded_br(px(44.))
                         .bg(rgb(0xff9f43)),
                 ))
-                .child(tile("rounded_full()", swatch().rounded_full().bg(rgb(0x48dbfb))))
+                .child(tile(
+                    "rounded_full()",
+                    swatch().rounded_full().bg(rgb(0x48dbfb)),
+                ))
                 .child(tile(
                     "pattern_slash",
                     swatch()
@@ -312,8 +315,13 @@ impl Showcase {
                         .cursor_pointer()
                         .shadow(vec![shadow(rgba(0x7c5cff66).into(), 0., 4., 14., 0.)])
                         .hover(|s| {
-                            s.bg(rgb(ACCENT_HI))
-                                .shadow(vec![shadow(rgba(0x7c5cffaa).into(), 0., 6., 22., 2.)])
+                            s.bg(rgb(ACCENT_HI)).shadow(vec![shadow(
+                                rgba(0x7c5cffaa).into(),
+                                0.,
+                                6.,
+                                22.,
+                                2.,
+                            )])
                         })
                         .active(|s| s.opacity(0.75))
                         .on_click(cx.listener(|this, _, _, cx| {
@@ -373,7 +381,11 @@ impl Showcase {
                         .h(px(28.))
                         .rounded_full()
                         .cursor_pointer()
-                        .bg(if toggle_on { rgb(0x1dd1a1) } else { rgb(BORDER) })
+                        .bg(if toggle_on {
+                            rgb(0x1dd1a1)
+                        } else {
+                            rgb(BORDER)
+                        })
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.toggle_on = !this.toggle_on;
                             cx.notify();
@@ -414,28 +426,35 @@ impl Showcase {
                         // 脈打つドット
                         .child(tile(
                             "パルス",
-                            div().size(px(40.)).flex().justify_center().items_center().child(
-                                div()
-                                    .size(px(20.))
-                                    .rounded_full()
-                                    .bg(rgb(0xff6b6b))
-                                    .with_animation(
-                                        "pulse",
-                                        Animation::new(Duration::from_millis(1200))
-                                            .repeat()
-                                            .with_easing(bounce(ease_in_out)),
-                                        |el, t| {
-                                            let s = px(20. + 20. * t);
-                                            el.size(s).opacity(1. - 0.6 * t).shadow(vec![shadow(
-                                                rgba(0xff6b6b99).into(),
-                                                0.,
-                                                0.,
-                                                24. * t,
-                                                0.,
-                                            )])
-                                        },
-                                    ),
-                            ),
+                            div()
+                                .size(px(40.))
+                                .flex()
+                                .justify_center()
+                                .items_center()
+                                .child(
+                                    div()
+                                        .size(px(20.))
+                                        .rounded_full()
+                                        .bg(rgb(0xff6b6b))
+                                        .with_animation(
+                                            "pulse",
+                                            Animation::new(Duration::from_millis(1200))
+                                                .repeat()
+                                                .with_easing(bounce(ease_in_out)),
+                                            |el, t| {
+                                                let s = px(20. + 20. * t);
+                                                el.size(s).opacity(1. - 0.6 * t).shadow(vec![
+                                                    shadow(
+                                                        rgba(0xff6b6b99).into(),
+                                                        0.,
+                                                        0.,
+                                                        24. * t,
+                                                        0.,
+                                                    ),
+                                                ])
+                                            },
+                                        ),
+                                ),
                         ))
                         // 色相が回るブロック
                         .child(tile(
@@ -607,11 +626,9 @@ impl Showcase {
                             .font_weight(FontWeight::BOLD)
                             .child("GPUI Styling Showcase"),
                     )
-                    .child(
-                        div()
-                            .text_color(rgba(0xffffffaa))
-                            .child("Zed の GPU アクセラレーテッド UI フレームワークでできる表現の見本帳"),
-                    ),
+                    .child(div().text_color(rgba(0xffffffaa)).child(
+                        "Zed の GPU アクセラレーテッド UI フレームワークでできる表現の見本帳",
+                    )),
             )
             .child(
                 div()
@@ -645,7 +662,11 @@ impl Showcase {
 impl Render for Showcase {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Mica 有効時は背景を半透明にして、デスクトップの色を透かす
-        let bg = if self.mica { rgba(0x0f111766) } else { rgb(BG).into() };
+        let bg = if self.mica {
+            rgba(0x0f111766)
+        } else {
+            rgb(BG).into()
+        };
 
         let sections: Vec<AnyElement> = vec![
             self.gradients().into_any_element(),
@@ -663,27 +684,23 @@ impl Render for Showcase {
             .bg(bg)
             .text_color(rgb(TEXT))
             .child(
-                div()
-                    .id("scroll")
-                    .size_full()
-                    .overflow_y_scroll()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_5()
-                            .p_6()
-                            .child(self.header(cx))
-                            .children(sections)
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(rgb(MUTED))
-                                    .text_center()
-                                    .pb_4()
-                                    .child(SharedString::from("Built with GPUI")),
-                            ),
-                    ),
+                div().id("scroll").size_full().overflow_y_scroll().child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_5()
+                        .p_6()
+                        .child(self.header(cx))
+                        .children(sections)
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(rgb(MUTED))
+                                .text_center()
+                                .pb_4()
+                                .child(SharedString::from("Built with GPUI")),
+                        ),
+                ),
             )
     }
 }

@@ -300,7 +300,11 @@ impl RenderOnce for Menu {
                     if !item.disabled {
                         let rid: SharedString = format!("{}-{i}", self.id).into();
                         let ripple = use_ripple(&rid, window, cx);
-                        row = row.child(ripple_overlay(&ripple, item_fg, gpui::Corners::all(shape::MEDIUM)));
+                        row = row.child(ripple_overlay(
+                            &ripple,
+                            item_fg,
+                            gpui::Corners::all(shape::MEDIUM),
+                        ));
                         row = track_ripple(row, &ripple);
                         row_focus = Some(ripple.focus().clone());
                     }
@@ -333,7 +337,11 @@ impl RenderOnce for Menu {
                         );
                     }
                     if has_sub {
-                        row = row.child(Icon::new(IconName::ChevronRight).size(px(20.)).color(item_icon));
+                        row = row.child(
+                            Icon::new(IconName::ChevronRight)
+                                .size(px(20.))
+                                .color(item_icon),
+                        );
                     }
                     if !item.disabled {
                         row = row
@@ -419,7 +427,10 @@ impl RenderOnce for Menu {
                                                             move |b, _, cx| {
                                                                 measure.update(cx, |s, _| {
                                                                     if s.rects.len() <= depth {
-                                                                        s.rects.resize(depth + 1, None);
+                                                                        s.rects.resize(
+                                                                            depth + 1,
+                                                                            None,
+                                                                        );
                                                                     }
                                                                     s.rects[depth] = Some(b);
                                                                 })
@@ -480,15 +491,19 @@ impl PopupState {
     }
 }
 
-pub(crate) fn popup_state(id: &SharedString, window: &mut Window, cx: &mut App) -> gpui::Entity<PopupState> {
-    window.use_keyed_state(
-        SharedString::from(format!("{id}::popup")),
-        cx,
-        |_, _| PopupState::default(),
-    )
+pub(crate) fn popup_state(
+    id: &SharedString,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Entity<PopupState> {
+    window.use_keyed_state(SharedString::from(format!("{id}::popup")), cx, |_, _| {
+        PopupState::default()
+    })
 }
 
-pub(crate) fn dismisser(state: &gpui::Entity<PopupState>) -> impl Fn(&mut Window, &mut App) + 'static {
+pub(crate) fn dismisser(
+    state: &gpui::Entity<PopupState>,
+) -> impl Fn(&mut Window, &mut App) + 'static {
     let state = state.clone();
     move |_, cx| {
         state.update(cx, |s, cx| {
@@ -583,7 +598,13 @@ impl RenderOnce for DropdownMenu {
         let mut el = div()
             .id(ElementId::Name(self.id.clone()))
             .relative()
-            .map(|d| if self.full_width { d.w_full() } else { d.flex_none() })
+            .map(|d| {
+                if self.full_width {
+                    d.w_full()
+                } else {
+                    d.flex_none()
+                }
+            })
             .child(
                 canvas(
                     move |b, _, cx| {
@@ -759,10 +780,7 @@ impl Select {
         self.leading_icon = Some(icon);
         self
     }
-    pub fn notch_background(
-        mut self,
-        f: impl Fn(&super::ColorScheme) -> Hsla + 'static,
-    ) -> Self {
+    pub fn notch_background(mut self, f: impl Fn(&super::ColorScheme) -> Hsla + 'static) -> Self {
         self.notch_background = Some(Rc::new(f));
         self
     }
@@ -781,8 +799,16 @@ impl RenderOnce for Select {
         let has_value = self.selected.is_some();
         let floating = open || has_value;
         let outlined = self.outlined;
-        let label_color = if open { c.primary } else { c.on_surface_variant };
-        let text_left = if self.leading_icon.is_some() { 52. } else { 16. };
+        let label_color = if open {
+            c.primary
+        } else {
+            c.on_surface_variant
+        };
+        let text_left = if self.leading_icon.is_some() {
+            52.
+        } else {
+            16.
+        };
         let notch_bg = self
             .notch_background
             .as_ref()
@@ -812,19 +838,15 @@ impl RenderOnce for Select {
                     .child(value_text),
             )
             .child(
-                div()
-                    .absolute()
-                    .right(px(12.))
-                    .top(px(16.))
-                    .child(
-                        Icon::new(if open {
-                            IconName::ArrowDropUp
-                        } else {
-                            IconName::ArrowDropDown
-                        })
-                        .size(px(24.))
-                        .color(c.on_surface_variant),
-                    ),
+                div().absolute().right(px(12.)).top(px(16.)).child(
+                    Icon::new(if open {
+                        IconName::ArrowDropUp
+                    } else {
+                        IconName::ArrowDropDown
+                    })
+                    .size(px(24.))
+                    .color(c.on_surface_variant),
+                ),
             );
         if let Some(icon) = self.leading_icon {
             field = field.child(
@@ -859,7 +881,11 @@ impl RenderOnce for Select {
                         .right_0()
                         .bottom_0()
                         .h(px(if open { 2. } else { 1. }))
-                        .bg(if open { c.primary } else { c.on_surface_variant }),
+                        .bg(if open {
+                            c.primary
+                        } else {
+                            c.on_surface_variant
+                        }),
                 );
         }
         // ラベル

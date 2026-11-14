@@ -178,11 +178,20 @@ impl RenderOnce for Slider {
                         if (px_ - x).abs() < handle_w / 2. + gap + dot {
                             continue;
                         }
-                        let color = if px_ < x { stop_on_active } else { stop_on_inactive };
+                        let color = if px_ < x {
+                            stop_on_active
+                        } else {
+                            stop_on_inactive
+                        };
                         paint_dot(window, point(px(px_), px(cy)), dot, color);
                     }
                 } else if right - inset - x > handle_w / 2. + gap + dot {
-                    paint_dot(window, point(px(right - inset), px(cy)), dot, stop_on_inactive);
+                    paint_dot(
+                        window,
+                        point(px(right - inset), px(cy)),
+                        dot,
+                        stop_on_inactive,
+                    );
                 }
                 // ハンドル
                 window.paint_quad(
@@ -300,25 +309,21 @@ impl RenderOnce for Slider {
                 format!("{:.2}", self.value)
             };
             el = el.child(
-                div()
-                    .absolute()
-                    .left(relative(frac))
-                    .top(px(-44.))
-                    .child(
-                        div()
-                            .relative()
-                            .left(px(-24.))
-                            .w(px(48.))
-                            .h(px(44.))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded_full()
-                            .bg(c.inverse_surface)
-                            .text_color(c.inverse_on_surface)
-                            .m3_type(TypeScale::LabelLarge)
-                            .child(label),
-                    ),
+                div().absolute().left(relative(frac)).top(px(-44.)).child(
+                    div()
+                        .relative()
+                        .left(px(-24.))
+                        .w(px(48.))
+                        .h(px(44.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded_full()
+                        .bg(c.inverse_surface)
+                        .text_color(c.inverse_on_surface)
+                        .m3_type(TypeScale::LabelLarge)
+                        .child(label),
+                ),
             );
         }
         el

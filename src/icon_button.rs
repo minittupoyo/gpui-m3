@@ -9,9 +9,9 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ButtonShape, ClickHandler, ComponentSize, Icon, IconName, Theme,
-    button_metrics, resolve_round, ripple_overlay, state, state_layer, track_press, track_ripple,
-    transparent, use_pressed, use_ripple,
+    ActiveTheme, ButtonShape, ClickHandler, ComponentSize, Icon, IconName, Theme, button_metrics,
+    resolve_round, ripple_overlay, state, state_layer, track_press, track_ripple, transparent,
+    use_pressed, use_ripple,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -82,12 +82,12 @@ pub(crate) fn icon_button_colors(
     let (mut bg, mut fg, mut border) = match (variant, selected) {
         (IconButtonVariant::Standard, Some(true)) => (transparent(), c.primary, None),
         (IconButtonVariant::Standard, _) => (transparent(), c.on_surface_variant, None),
-        (IconButtonVariant::Filled, Some(false)) => (c.surface_container, c.on_surface_variant, None),
+        (IconButtonVariant::Filled, Some(false)) => {
+            (c.surface_container, c.on_surface_variant, None)
+        }
         (IconButtonVariant::Filled, _) => (c.primary, c.on_primary, None),
         (IconButtonVariant::Tonal, Some(true)) => (c.secondary, c.on_secondary, None),
-        (IconButtonVariant::Tonal, _) => {
-            (c.secondary_container, c.on_secondary_container, None)
-        }
+        (IconButtonVariant::Tonal, _) => (c.secondary_container, c.on_secondary_container, None),
         (IconButtonVariant::Outlined, Some(true)) => {
             (c.inverse_surface, c.inverse_on_surface, None)
         }

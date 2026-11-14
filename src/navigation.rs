@@ -11,8 +11,8 @@ use std::rc::Rc;
 
 use gpui::AnimationExt as _;
 use gpui::{
-    AnyElement, App, ElementId, IntoElement, RenderOnce, SharedString, SpringAnimation,
-    Window, div, prelude::*, px,
+    AnyElement, App, ElementId, IntoElement, RenderOnce, SharedString, SpringAnimation, Window,
+    div, prelude::*, px,
 };
 
 use super::{
@@ -107,7 +107,11 @@ fn nav_item(
         .justify_center()
         .group_hover(group.clone(), move |s| s.bg(layer))
         .child(pill)
-        .child(div().relative().child(Icon::new(icon).size(px(24.)).color(icon_color)));
+        .child(
+            div()
+                .relative()
+                .child(Icon::new(icon).size(px(24.)).color(icon_color)),
+        );
 
     if let Some(badge) = item.badge {
         icon_box = icon_box.child(
@@ -193,7 +197,11 @@ fn nav_item_expanded(
         .child(indicator)
         .child(hover)
         .child(ripple_overlay(&ripple, fg, gpui::Corners::all(px(28.))))
-        .child(div().relative().child(Icon::new(icon).size(px(24.)).color(fg)))
+        .child(
+            div()
+                .relative()
+                .child(Icon::new(icon).size(px(24.)).color(fg)),
+        )
         .child(
             div()
                 .relative()
@@ -267,7 +275,12 @@ fn rail_body(theme: &Theme, p: RailParts, exp: bool) -> AnyElement {
     let rail_w = if exp { expanded_width } else { COLLAPSED_W };
     // 左端を固定したまま幅だけ変わるように、要素は常に左から配置する
     let wrap = |el: AnyElement, pl: f32| -> AnyElement {
-        div().w_full().flex().pl(px(pl)).child(el).into_any_element()
+        div()
+            .w_full()
+            .flex()
+            .pl(px(pl))
+            .child(el)
+            .into_any_element()
     };
 
     let mut col = div()
@@ -519,8 +532,11 @@ impl RenderOnce for NavigationRail {
 
         if !modal {
             // 幅をバネで動かす。幅が半分を超えたら展開レイアウトに切り替える
-            let spring = SpringAnimation::new(theme.motion.default_spatial)
-                .to(px(if expanded { width } else { COLLAPSED_W }));
+            let spring = SpringAnimation::new(theme.motion.default_spatial).to(px(if expanded {
+                width
+            } else {
+                COLLAPSED_W
+            }));
             let bg = theme.colors.surface;
             return div()
                 .h_full()

@@ -14,9 +14,9 @@ use std::rc::Rc;
 
 use gpui::AnimationExt as _;
 use gpui::{
-    Anchor, App, ClickEvent, ElementId, Entity, IntoElement, Pixels, RenderOnce,
-    SharedString, SpringAnimation, Stateful, Div, Transformation, Window, anchored, deferred, div,
-    prelude::*, px, radians, relative, svg,
+    Anchor, App, ClickEvent, Div, ElementId, Entity, IntoElement, Pixels, RenderOnce, SharedString,
+    SpringAnimation, Stateful, Transformation, Window, anchored, deferred, div, prelude::*, px,
+    radians, relative, svg,
 };
 
 use super::{
@@ -100,11 +100,9 @@ impl SplitButton {
 
 /// ホバー状態を keyed state に保持する
 fn use_hovered(id: &SharedString, window: &mut Window, cx: &mut App) -> Entity<bool> {
-    window.use_keyed_state(
-        SharedString::from(format!("{id}::hovered")),
-        cx,
-        |_, _| false,
-    )
+    window.use_keyed_state(SharedString::from(format!("{id}::hovered")), cx, |_, _| {
+        false
+    })
 }
 
 fn track_hover(el: Stateful<Div>, state: &Entity<bool>) -> Stateful<Div> {
@@ -212,10 +210,10 @@ impl RenderOnce for SplitButton {
                 bottom_right: lead_inner,
             },
         )
-            .gap(m.gap)
-            .pl(m.padding)
-            .pr(m.padding * 0.75)
-            .m3_type(m.type_scale);
+        .gap(m.gap)
+        .pl(m.padding)
+        .pr(m.padding * 0.75)
+        .m3_type(m.type_scale);
         if let Some(icon) = self.icon {
             lead = lead.child(Icon::new(icon).size(m.icon).color(content));
         }
@@ -254,9 +252,7 @@ impl RenderOnce for SplitButton {
                     .flex_none()
                     .path(IconName::KeyboardArrowDown.path())
                     .text_color(content)
-                    .with_transformation(Transformation::rotate(radians(
-                        t * std::f32::consts::PI,
-                    )));
+                    .with_transformation(Transformation::rotate(radians(t * std::f32::consts::PI)));
                 let tr = trail_inner.min(outer);
                 let mut btn = apply_common(
                     div().id(ElementId::Name(trail_id2.clone())),
@@ -268,8 +264,8 @@ impl RenderOnce for SplitButton {
                         bottom_right: outer,
                     },
                 )
-                    .w(px(width))
-                    .child(chevron);
+                .w(px(width))
+                .child(chevron);
                 if !disabled {
                     btn = track_hover(track_press(btn, &trail_pressed2), &trail_hover2);
                     let toggle = toggle.clone();
@@ -310,15 +306,20 @@ impl RenderOnce for SplitButton {
         if open {
             let menu = self.menu.on_dismiss(dismisser(&popup));
             root = root.child(
-                div().absolute().top(relative(1.)).mt(px(4.)).right_0().child(
-                    deferred(
-                        anchored()
-                            .anchor(Anchor::TopRight)
-                            .snap_to_window_with_margin(px(8.))
-                            .child(menu),
-                    )
-                    .priority(1),
-                ),
+                div()
+                    .absolute()
+                    .top(relative(1.))
+                    .mt(px(4.))
+                    .right_0()
+                    .child(
+                        deferred(
+                            anchored()
+                                .anchor(Anchor::TopRight)
+                                .snap_to_window_with_margin(px(8.))
+                                .child(menu),
+                        )
+                        .priority(1),
+                    ),
             );
         }
         root

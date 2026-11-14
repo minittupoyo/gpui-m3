@@ -107,10 +107,7 @@ impl Render for PlainTooltip {
 /// `.tooltip(gpui_m3::tooltip("説明"))` のように使う
 pub fn tooltip(text: impl Into<SharedString>) -> impl Fn(&mut Window, &mut App) -> AnyView {
     let text = text.into();
-    move |_, cx| {
-        cx.new(|_| PlainTooltip { text: text.clone() })
-            .into()
-    }
+    move |_, cx| cx.new(|_| PlainTooltip { text: text.clone() }).into()
 }
 
 // ---------------------------------------------------------------------------
@@ -478,16 +475,12 @@ impl RenderOnce for ListItem {
         if let Some(l) = self.leading {
             el = el.child(l);
         }
-        let mut text = div()
-            .flex_1()
-            .flex()
-            .flex_col()
-            .child(
-                div()
-                    .m3_type(TypeScale::BodyLarge)
-                    .text_color(c.on_surface)
-                    .child(self.headline),
-            );
+        let mut text = div().flex_1().flex().flex_col().child(
+            div()
+                .m3_type(TypeScale::BodyLarge)
+                .text_color(c.on_surface)
+                .child(self.headline),
+        );
         if let Some(s) = self.supporting {
             text = text.child(
                 div()

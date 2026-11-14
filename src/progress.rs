@@ -17,11 +17,7 @@ use super::{ActiveTheme, f};
 pub(crate) fn paint_dot(window: &mut Window, center: Point<Pixels>, d: f32, color: Hsla) {
     let r = px(d / 2.);
     window.paint_quad(
-        fill(
-            Bounds::new(center - point(r, r), size(px(d), px(d))),
-            color,
-        )
-        .corner_radii(r),
+        fill(Bounds::new(center - point(r, r), size(px(d), px(d))), color).corner_radii(r),
     );
 }
 
@@ -162,7 +158,13 @@ impl RenderOnce for LinearProgress {
 
             // 波線の y（determinate では進行に応じて波が流れる）
             let phase = t * TAU;
-            let amp_for = |len: f32| if len < 0.05 { amplitude * len / 0.05 } else { amplitude };
+            let amp_for = |len: f32| {
+                if len < 0.05 {
+                    amplitude * len / 0.05
+                } else {
+                    amplitude
+                }
+            };
             let active_segment = |window: &mut Window, from: f32, to: f32, amp: f32| {
                 if to - from <= 0.0001 {
                     return;
@@ -294,26 +296,27 @@ impl RenderOnce for CircularProgress {
             let (cx0, cy0) = (f(c.x), f(c.y));
             let r = diameter / 2. - stroke / 2. - amplitude;
             let waves = (TAU * r / 14.).round();
-            let arc = |window: &mut Window, from: f32, to: f32, color: Hsla, wave: bool, rot: f32| {
-                // from/to は 0..1（12 時起点・時計回り）
-                if to - from <= 0.0005 {
-                    return;
-                }
-                let steps = (((to - from) * 160.).ceil() as usize).max(2);
-                let pts: Vec<_> = (0..=steps)
-                    .map(|i| {
-                        let u = from + (to - from) * i as f32 / steps as f32;
-                        let a = u * TAU - TAU / 4. + rot;
-                        let rr = if wave {
-                            r + amplitude * (a * waves - t * TAU).sin()
-                        } else {
-                            r
-                        };
-                        point(px(cx0 + rr * a.cos()), px(cy0 + rr * a.sin()))
-                    })
-                    .collect();
-                paint_polyline(window, &pts, stroke, color);
-            };
+            let arc =
+                |window: &mut Window, from: f32, to: f32, color: Hsla, wave: bool, rot: f32| {
+                    // from/to は 0..1（12 時起点・時計回り）
+                    if to - from <= 0.0005 {
+                        return;
+                    }
+                    let steps = (((to - from) * 160.).ceil() as usize).max(2);
+                    let pts: Vec<_> = (0..=steps)
+                        .map(|i| {
+                            let u = from + (to - from) * i as f32 / steps as f32;
+                            let a = u * TAU - TAU / 4. + rot;
+                            let rr = if wave {
+                                r + amplitude * (a * waves - t * TAU).sin()
+                            } else {
+                                r
+                            };
+                            point(px(cx0 + rr * a.cos()), px(cy0 + rr * a.sin()))
+                        })
+                        .collect();
+                    paint_polyline(window, &pts, stroke, color);
+                };
             let gap = (4. + stroke) / (TAU * r);
 
             match v {

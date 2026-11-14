@@ -56,7 +56,11 @@ impl RippleHandle {
 
 /// ポップアップ（メニュー・ダイアログ・シートなど）が開いている間だけ存在するフォーカス先。
 /// 初めて描画された（＝開いた）瞬間にフォーカスを移すので、Esc や矢印キーが届く。
-pub(crate) fn use_popup_focus(key: &SharedString, window: &mut Window, cx: &mut App) -> FocusHandle {
+pub(crate) fn use_popup_focus(
+    key: &SharedString,
+    window: &mut Window,
+    cx: &mut App,
+) -> FocusHandle {
     let state = window.use_keyed_state(
         SharedString::from(format!("{key}::popup-focus")),
         cx,
@@ -91,14 +95,12 @@ pub(crate) fn dismiss_on_escape(
 }
 
 pub(crate) fn use_ripple(id: &SharedString, window: &mut Window, cx: &mut App) -> RippleHandle {
-    let state = window.use_keyed_state(
-        SharedString::from(format!("{id}::ripple")),
-        cx,
-        |_, cx| RippleState {
+    let state = window.use_keyed_state(SharedString::from(format!("{id}::ripple")), cx, |_, cx| {
+        RippleState {
             ripples: Vec::new(),
             focus: cx.focus_handle().tab_index(0).tab_stop(true),
-        },
-    );
+        }
+    });
     let focus = state.read(cx).focus.clone();
     RippleHandle { state, focus }
 }
@@ -124,21 +126,21 @@ pub(crate) fn track_ripple(el: Stateful<Div>, handle: &RippleHandle) -> Stateful
     let out = handle.state.clone();
     el.track_focus(&handle.focus)
         .on_mouse_down(MouseButton::Left, move |e, _, cx| {
-        let position = e.position;
-        down.update(cx, |s, cx| {
-            s.ripples.push(Ripple {
-                origin: position,
-                start: Instant::now(),
-                released: None,
+            let position = e.position;
+            down.update(cx, |s, cx| {
+                s.ripples.push(Ripple {
+                    origin: position,
+                    start: Instant::now(),
+                    released: None,
+                });
+                if s.ripples.len() > 6 {
+                    s.ripples.remove(0);
+                }
+                cx.notify();
             });
-            if s.ripples.len() > 6 {
-                s.ripples.remove(0);
-            }
-            cx.notify();
-        });
-    })
-    .on_mouse_up(MouseButton::Left, move |_, _, cx| release(&up, cx))
-    .on_mouse_up_out(MouseButton::Left, move |_, _, cx| release(&out, cx))
+        })
+        .on_mouse_up(MouseButton::Left, move |_, _, cx| release(&up, cx))
+        .on_mouse_up_out(MouseButton::Left, move |_, _, cx| release(&out, cx))
 }
 
 fn ease_out_cubic(t: f32) -> f32 {
@@ -162,7 +164,10 @@ fn rounded_rect_polygon(b: Bounds<Pixels>, radii: Corners<Pixels>) -> Vec<P> {
 
     let mut pts: Vec<P> = Vec::new();
     let mut push = |p: P| {
-        if pts.last().is_none_or(|l| (l.0 - p.0).abs() > 0.01 || (l.1 - p.1).abs() > 0.01) {
+        if pts
+            .last()
+            .is_none_or(|l| (l.0 - p.0).abs() > 0.01 || (l.1 - p.1).abs() > 0.01)
+        {
             pts.push(p);
         }
     };
@@ -257,16 +262,17 @@ pub(crate) fn ripple_overlay(
             }
             let now = Instant::now();
             // 終わった波紋を片付ける（通知はしない）
-            let active: Vec<(Point<Pixels>, Instant, Option<Instant>)> = state.update(cx, |s, _| {
-                s.ripples.retain(|r| match r.released {
-                    Some(t) => now.duration_since(t) < FADE,
-                    None => true,
+            let active: Vec<(Point<Pixels>, Instant, Option<Instant>)> =
+                state.update(cx, |s, _| {
+                    s.ripples.retain(|r| match r.released {
+                        Some(t) => now.duration_since(t) < FADE,
+                        None => true,
+                    });
+                    s.ripples
+                        .iter()
+                        .map(|r| (r.origin, r.start, r.released))
+                        .collect()
                 });
-                s.ripples
-                    .iter()
-                    .map(|r| (r.origin, r.start, r.released))
-                    .collect()
-            });
             if active.is_empty() {
                 return;
             }
@@ -287,9 +293,12 @@ pub(crate) fn ripple_overlay(
                 let elapsed = now.duration_since(start);
                 let t = (elapsed.as_secs_f32() / EXPAND.as_secs_f32()).clamp(0., 1.);
                 let radius = r_max * ease_out_cubic(t);
-                let mut alpha = PEAK * (elapsed.as_secs_f32() / FADE_IN.as_secs_f32()).clamp(0., 1.);
+                let mut alpha =
+                    PEAK * (elapsed.as_secs_f32() / FADE_IN.as_secs_f32()).clamp(0., 1.);
                 if let Some(rel) = released {
-                    alpha *= 1. - (now.duration_since(rel).as_secs_f32() / FADE.as_secs_f32()).clamp(0., 1.);
+                    alpha *= 1.
+                        - (now.duration_since(rel).as_secs_f32() / FADE.as_secs_f32())
+                            .clamp(0., 1.);
                 }
                 if radius < 0.5 || alpha <= 0.001 {
                     continue;

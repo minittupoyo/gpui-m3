@@ -9,9 +9,8 @@ use gpui::{
 };
 
 use super::{
-    animate_elevation, elevation_f, track_hover, use_hover,
-    ActiveTheme, ClickHandler, ripple_overlay, shape, state, state_layer, track_ripple,
-    use_ripple,
+    ActiveTheme, ClickHandler, animate_elevation, elevation_f, ripple_overlay, shape, state,
+    state_layer, track_hover, track_ripple, use_hover, use_ripple,
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -175,7 +174,14 @@ impl RenderOnce for Card {
         } else {
             1.
         };
-        let level = animate_elevation(&self.id, *hover_state.read(cx), elev as f32, hover_elev, window, cx);
+        let level = animate_elevation(
+            &self.id,
+            *hover_state.read(cx),
+            elev as f32,
+            hover_elev,
+            window,
+            cx,
+        );
 
         let mut el = div()
             .id(ElementId::Name(self.id.clone()))

@@ -70,10 +70,7 @@ impl RenderOnce for LoadingIndicator {
         let per_shape = 650u64;
         let scale = self.size * 38. / 48. / 2. * if self.contained { 0.8 } else { 1. };
 
-        let mut root = div()
-            .size(px(self.size))
-            .flex_none()
-            .rounded_full();
+        let mut root = div().size(px(self.size)).flex_none().rounded_full();
         if let Some(bg) = container {
             root = root.bg(bg);
         }

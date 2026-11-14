@@ -654,7 +654,10 @@ mod tests {
     #[test]
     fn fractional_elevation_interpolates() {
         assert!(elevation_f(0., shadow_color()).is_empty());
-        let (lo, hi) = (elevation_f(1., shadow_color()), elevation_f(2., shadow_color()));
+        let (lo, hi) = (
+            elevation_f(1., shadow_color()),
+            elevation_f(2., shadow_color()),
+        );
         let mid = elevation_f(1.5, shadow_color());
         let (l, m, h) = (
             f32::from(lo[1].blur_radius),

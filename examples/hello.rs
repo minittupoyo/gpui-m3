@@ -65,16 +65,14 @@ impl Render for Hello {
                     ))
                     .child("通知を受け取る"),
             )
-            .child(
-                div().flex().child(
-                    Button::new("count", format!("クリック {}", self.clicks)).on_click(
-                        cx.listener(|h, _, _, cx| {
-                            h.clicks += 1;
-                            cx.notify();
-                        }),
-                    ),
-                ),
-            )
+            .child(div().flex().child(
+                Button::new("count", format!("クリック {}", self.clicks)).on_click(cx.listener(
+                    |h, _, _, cx| {
+                        h.clicks += 1;
+                        cx.notify();
+                    },
+                )),
+            ))
     }
 }
 

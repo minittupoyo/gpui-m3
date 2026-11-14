@@ -143,8 +143,11 @@ impl RenderOnce for SideSheet {
                 .overflow_hidden()
                 .with_spring(
                     ElementId::Name(format!("{id}::width").into()),
-                    SpringAnimation::new(motion.default_spatial)
-                        .to(px(if open { width + 16. } else { 0. })),
+                    SpringAnimation::new(motion.default_spatial).to(px(if open {
+                        width + 16.
+                    } else {
+                        0.
+                    })),
                     move |el, w| {
                         el.w(w.max(px(0.))).child(
                             div()
@@ -362,7 +365,11 @@ impl Render for RichTooltip {
                     .child(t),
             );
         }
-        el = el.child(div().m3_type(TypeScale::BodyMedium).child(self.text.clone()));
+        el = el.child(
+            div()
+                .m3_type(TypeScale::BodyMedium)
+                .child(self.text.clone()),
+        );
         if let Some((label, handler)) = self.action.clone() {
             el = el.child(
                 div().flex().justify_start().child(

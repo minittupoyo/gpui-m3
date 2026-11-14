@@ -42,7 +42,13 @@ fn quantize(v: f32, min: f32, max: f32, step: Option<f32>) -> f32 {
 }
 
 /// 軸方向の区間 [a0, a1]（最小値側が 0）を矩形にする
-fn segment_bounds(b: Bounds<Pixels>, vertical: bool, a0: f32, a1: f32, track: f32) -> Bounds<Pixels> {
+fn segment_bounds(
+    b: Bounds<Pixels>,
+    vertical: bool,
+    a0: f32,
+    a1: f32,
+    track: f32,
+) -> Bounds<Pixels> {
     if vertical {
         let cx = f(b.origin.x) + f(b.size.width) / 2.;
         let bottom = f(b.origin.y) + f(b.size.height);
@@ -122,7 +128,11 @@ fn render_linear(l: Linear, window: &mut Window, cx: &mut App) -> impl IntoEleme
             measure.update(cx, |s, _| s.bounds = b);
         },
         move |b, _, window, _| {
-            let len = if vertical { f(b.size.height) } else { f(b.size.width) };
+            let len = if vertical {
+                f(b.size.height)
+            } else {
+                f(b.size.width)
+            };
             let outer = track / 2.;
             let inner = 2.;
             let pos: Vec<f32> = fracs_paint.iter().map(|t| t * len).collect();
@@ -131,7 +141,11 @@ fn render_linear(l: Linear, window: &mut Window, cx: &mut App) -> impl IntoEleme
             let mut segs: Vec<(f32, f32, bool)> = Vec::new();
             if range {
                 segs.push((0., pos[0] - gap - handle_w(0) / 2., false));
-                segs.push((pos[0] + gap + handle_w(0) / 2., pos[1] - gap - handle_w(1) / 2., true));
+                segs.push((
+                    pos[0] + gap + handle_w(0) / 2.,
+                    pos[1] - gap - handle_w(1) / 2.,
+                    true,
+                ));
                 segs.push((pos[1] + gap + handle_w(1) / 2., len, false));
             } else {
                 segs.push((0., pos[0] - gap - handle_w(0) / 2., true));
@@ -141,8 +155,16 @@ fn render_linear(l: Linear, window: &mut Window, cx: &mut App) -> impl IntoEleme
                 if a1 - a0 <= 0.5 {
                     continue;
                 }
-                let r_start = if a0 <= 0.01 { outer.min((a1 - a0) / 2.) } else { inner };
-                let r_end = if a1 >= len - 0.01 { outer.min((a1 - a0) / 2.) } else { inner };
+                let r_start = if a0 <= 0.01 {
+                    outer.min((a1 - a0) / 2.)
+                } else {
+                    inner
+                };
+                let r_end = if a1 >= len - 0.01 {
+                    outer.min((a1 - a0) / 2.)
+                } else {
+                    inner
+                };
                 let corners = if vertical {
                     // 最小値側が下
                     Corners {
@@ -247,7 +269,10 @@ fn render_linear(l: Linear, window: &mut Window, cx: &mut App) -> impl IntoEleme
     .absolute()
     .size_full();
 
-    let mut el = div().id(ElementId::Name(id.clone())).relative().child(drawing);
+    let mut el = div()
+        .id(ElementId::Name(id.clone()))
+        .relative()
+        .child(drawing);
     el = if vertical {
         el.w(px(handle_len)).h(length)
     } else {
@@ -269,9 +294,7 @@ fn render_linear(l: Linear, window: &mut Window, cx: &mut App) -> impl IntoEleme
                 let i = fr
                     .iter()
                     .enumerate()
-                    .min_by(|a, b| {
-                        (a.1 - t).abs().partial_cmp(&(b.1 - t).abs()).unwrap()
-                    })
+                    .min_by(|a, b| (a.1 - t).abs().partial_cmp(&(b.1 - t).abs()).unwrap())
                     .map(|(i, _)| i)
                     .unwrap_or(0);
                 st.update(cx, |s, cx| {

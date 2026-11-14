@@ -144,7 +144,11 @@ impl RenderOnce for NavigationDrawer {
                     let i = index;
                     index += 1;
                     let selected = i == self.selected;
-                    let fg = if selected { c.on_secondary_container } else { c.on_surface_variant };
+                    let fg = if selected {
+                        c.on_secondary_container
+                    } else {
+                        c.on_surface_variant
+                    };
                     let icon = if selected {
                         item.selected_icon.unwrap_or(item.icon)
                     } else {
@@ -208,8 +212,11 @@ impl RenderOnce for NavigationDrawer {
                 .overflow_hidden()
                 .with_spring(
                     ElementId::Name(format!("{id}::width").into()),
-                    SpringAnimation::new(motion.default_spatial)
-                        .to(px(if open { width } else { 0. })),
+                    SpringAnimation::new(motion.default_spatial).to(px(if open {
+                        width
+                    } else {
+                        0.
+                    })),
                     move |el, w| {
                         el.w(w.max(px(0.))).child(
                             div()

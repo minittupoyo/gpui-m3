@@ -249,7 +249,11 @@ impl RenderOnce for Checkbox {
             (true, false) => (accent, accent, on_accent),
             (false, false) => (
                 transparent(),
-                if self.error { c.error } else { c.on_surface_variant },
+                if self.error {
+                    c.error
+                } else {
+                    c.on_surface_variant
+                },
                 transparent(),
             ),
         };
@@ -382,7 +386,11 @@ impl RenderOnce for Radio {
             (true, false) => c.primary,
             (false, false) => c.on_surface_variant,
         };
-        let layer = if self.selected { c.primary } else { c.on_surface };
+        let layer = if self.selected {
+            c.primary
+        } else {
+            c.on_surface
+        };
         let group: SharedString = format!("{}::group", self.id).into();
 
         let dot = div().rounded_full().bg(color).with_spring(

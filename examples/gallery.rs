@@ -10,8 +10,8 @@ use gpui::{
     AnyElement, App, Bounds, Context, Entity, IntoElement, SharedString, Window, WindowBounds,
     WindowOptions, div, linear_color_stop, linear_gradient, prelude::*, px, size,
 };
-use gpui_platform::application;
 use gpui_m3::{self as m3, *};
+use gpui_platform::application;
 
 const PAGES: [(&str, IconName); 11] = [
     ("Buttons", IconName::Home),
@@ -181,8 +181,10 @@ impl Gallery {
                     .label("メモ（複数行）")
                     .multiline(3)
                     .max_lines(6)
-                    .value("1行目
-2行目は少し長めの文章で、幅を超えると折り返して表示されます。日本語の折り返しも確認します。")
+                    .value(
+                        "1行目
+2行目は少し長めの文章で、幅を超えると折り返して表示されます。日本語の折り返しも確認します。",
+                    )
             }),
             cx.new(|cx| {
                 TextField::new(window, cx)
@@ -263,7 +265,10 @@ impl Gallery {
             search_open: false,
             date: m3::Date::new(2026, 11, 14),
             date_view: (2026, 11),
-            date_range: m3::DateRange::new(Some(m3::Date::new(2026, 11, 10)), Some(m3::Date::new(2026, 11, 17))),
+            date_range: m3::DateRange::new(
+                Some(m3::Date::new(2026, 11, 10)),
+                Some(m3::Date::new(2026, 11, 17)),
+            ),
             range_view: (2026, 11),
             time: (9, 41),
             time_mode: m3::TimeMode::Hour,
@@ -271,7 +276,10 @@ impl Gallery {
             drawer_open: true,
             drawer_modal_open: false,
             drawer_sel: 0,
-            page: std::env::var("M3_PAGE").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
+            page: std::env::var("M3_PAGE")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
             toggles: [false, true, false, true, false],
             favorite: [true, false, true, false],
             clicks: 0,
@@ -389,7 +397,12 @@ fn labeled(muted: gpui::Hsla, label: impl Into<SharedString>, el: impl IntoEleme
         .items_center()
         .gap(px(8.))
         .child(el)
-        .child(div().m3_type(TypeScale::LabelMedium).text_color(muted).child(label.into()))
+        .child(
+            div()
+                .m3_type(TypeScale::LabelMedium)
+                .text_color(muted)
+                .child(label.into()),
+        )
 }
 
 // ---------------------------------------------------------------------------
@@ -502,10 +515,22 @@ impl Gallery {
         // Split buttons
         let split_menu = |cx: &mut Context<Self>, id: &str| {
             Menu::new(format!("{id}-menu"))
-                .item(MenuItem::new("下書きとして保存").icon(IconName::Edit).on_click(Self::log(cx, "下書きとして保存")))
-                .item(MenuItem::new("コピーを保存").icon(IconName::ContentCopy).on_click(Self::log(cx, "コピーを保存")))
+                .item(
+                    MenuItem::new("下書きとして保存")
+                        .icon(IconName::Edit)
+                        .on_click(Self::log(cx, "下書きとして保存")),
+                )
+                .item(
+                    MenuItem::new("コピーを保存")
+                        .icon(IconName::ContentCopy)
+                        .on_click(Self::log(cx, "コピーを保存")),
+                )
                 .divider()
-                .item(MenuItem::new("共有して保存").icon(IconName::Share).on_click(Self::log(cx, "共有して保存")))
+                .item(
+                    MenuItem::new("共有して保存")
+                        .icon(IconName::Share)
+                        .on_click(Self::log(cx, "共有して保存")),
+                )
         };
         let mut split_variants = wrap_row();
         for v in [
@@ -536,7 +561,12 @@ impl Gallery {
                     .on_click(Self::log(cx, "保存")),
             ));
         }
-        let split_disabled = SplitButton::new("split-disabled", "Disabled", split_menu(cx, "split-disabled")).disabled(true);
+        let split_disabled = SplitButton::new(
+            "split-disabled",
+            "Disabled",
+            split_menu(cx, "split-disabled"),
+        )
+        .disabled(true);
         out.push(
             section(
                 cx,
@@ -561,27 +591,34 @@ impl Gallery {
             icon_variants = icon_variants.child(labeled(
                 muted(cx),
                 v.name(),
-                div().flex().gap(px(8.)).child(
-                    IconButton::new(format!("ib-{i}"), IconName::Settings)
-                        .variant(v)
-                        .size(ComponentSize::Medium),
-                )
-                .child(
-                    IconButton::new(format!("ibt-{i}"), IconName::FavoriteBorder)
-                        .selected_icon(IconName::Favorite)
-                        .variant(v)
-                        .size(ComponentSize::Medium)
-                        .selected(sel)
-                        .on_click(cx.listener(move |g, _, _, cx| {
-                            g.favorite[i] = !g.favorite[i];
-                            cx.notify();
-                        })),
-                ),
+                div()
+                    .flex()
+                    .gap(px(8.))
+                    .child(
+                        IconButton::new(format!("ib-{i}"), IconName::Settings)
+                            .variant(v)
+                            .size(ComponentSize::Medium),
+                    )
+                    .child(
+                        IconButton::new(format!("ibt-{i}"), IconName::FavoriteBorder)
+                            .selected_icon(IconName::Favorite)
+                            .variant(v)
+                            .size(ComponentSize::Medium)
+                            .selected(sel)
+                            .on_click(cx.listener(move |g, _, _, cx| {
+                                g.favorite[i] = !g.favorite[i];
+                                cx.notify();
+                            })),
+                    ),
             ));
         }
         let mut icon_sizes = wrap_row().items_end();
         for s in ComponentSize::ALL {
-            for w in [IconButtonWidth::Narrow, IconButtonWidth::Default, IconButtonWidth::Wide] {
+            for w in [
+                IconButtonWidth::Narrow,
+                IconButtonWidth::Default,
+                IconButtonWidth::Wide,
+            ] {
                 icon_sizes = icon_sizes.child(
                     IconButton::new(format!("ibs-{}-{w:?}", s.name()), IconName::Edit)
                         .tonal()
@@ -665,18 +702,26 @@ impl Gallery {
                     .border_1()
                     .border_color(c.outline_variant)
                     .child(
-                        div()
-                            .absolute()
-                            .right(px(16.))
-                            .bottom(px(16.))
-                            .child(
-                                FabMenu::new(format!("fm-{i}"), IconName::Add)
-                                    .color(color)
-                                    .item(FabMenuItem::new(IconName::Mail, "メール").on_click(Self::log(cx, "メール")))
-                                    .item(FabMenuItem::new(IconName::Image, "写真").on_click(Self::log(cx, "写真")))
-                                    .item(FabMenuItem::new(IconName::Bookmark, "ブックマーク").on_click(Self::log(cx, "ブックマーク")))
-                                    .item(FabMenuItem::new(IconName::Edit, "メモ").on_click(Self::log(cx, "メモ"))),
-                            ),
+                        div().absolute().right(px(16.)).bottom(px(16.)).child(
+                            FabMenu::new(format!("fm-{i}"), IconName::Add)
+                                .color(color)
+                                .item(
+                                    FabMenuItem::new(IconName::Mail, "メール")
+                                        .on_click(Self::log(cx, "メール")),
+                                )
+                                .item(
+                                    FabMenuItem::new(IconName::Image, "写真")
+                                        .on_click(Self::log(cx, "写真")),
+                                )
+                                .item(
+                                    FabMenuItem::new(IconName::Bookmark, "ブックマーク")
+                                        .on_click(Self::log(cx, "ブックマーク")),
+                                )
+                                .item(
+                                    FabMenuItem::new(IconName::Edit, "メモ")
+                                        .on_click(Self::log(cx, "メモ")),
+                                ),
+                        ),
                     ),
             ));
         }
@@ -720,7 +765,9 @@ impl Gallery {
                     .item(ButtonGroupItem::new("斜体"))
                     .item(ButtonGroupItem::new("下線"))
                     .selected(self.text_styles.clone())
-                    .on_toggle(Self::set(cx, |g, i: usize| g.text_styles[i] = !g.text_styles[i])),
+                    .on_toggle(Self::set(cx, |g, i: usize| {
+                        g.text_styles[i] = !g.text_styles[i]
+                    })),
             )
             .child(
                 StandardButtonGroup::new("sg-media")
@@ -762,11 +809,24 @@ impl Gallery {
                     .icons(true)
                     .on_change(Self::set(cx, |g, v| g.switches[2] = v)),
             ))
-            .child(labeled(muted(cx), "Disabled", Switch::new("sw-d1", true).disabled(true)))
-            .child(labeled(muted(cx), "Disabled", Switch::new("sw-d2", false).disabled(true)));
+            .child(labeled(
+                muted(cx),
+                "Disabled",
+                Switch::new("sw-d1", true).disabled(true),
+            ))
+            .child(labeled(
+                muted(cx),
+                "Disabled",
+                Switch::new("sw-d2", false).disabled(true),
+            ));
         out.push(
-            section(cx, "Switches", "ハンドルはバネで移動・拡大（押下で 28px）", switches)
-                .into_any_element(),
+            section(
+                cx,
+                "Switches",
+                "ハンドルはバネで移動・拡大（押下で 28px）",
+                switches,
+            )
+            .into_any_element(),
         );
 
         let all = self.checks.iter().all(|c| *c);
@@ -804,11 +864,18 @@ impl Gallery {
                     .child(Checkbox::new("cb-e", false).error(true).label("Error"))
                     .child(Checkbox::new("cb-e2", true).error(true).label("Error"))
                     .child(Checkbox::new("cb-d", true).disabled(true).label("Disabled"))
-                    .child(Checkbox::new("cb-d2", false).disabled(true).label("Disabled")),
+                    .child(
+                        Checkbox::new("cb-d2", false)
+                            .disabled(true)
+                            .label("Disabled"),
+                    ),
             );
 
         let mut radios = div().flex().flex_col();
-        for (i, label) in ["ライト", "ダーク", "システムに合わせる"].into_iter().enumerate() {
+        for (i, label) in ["ライト", "ダーク", "システムに合わせる"]
+            .into_iter()
+            .enumerate()
+        {
             let set = Self::set(cx, move |g, _: ()| g.radio = i);
             radios = radios.child(
                 Radio::new(format!("r-{i}"), self.radio == i)
@@ -835,7 +902,10 @@ impl Gallery {
         let c = cx.m3().colors.clone();
 
         let mut filters = wrap_row();
-        for (i, label) in ["和食", "イタリアン", "カフェ", "ラーメン"].into_iter().enumerate() {
+        for (i, label) in ["和食", "イタリアン", "カフェ", "ラーメン"]
+            .into_iter()
+            .enumerate()
+        {
             filters = filters.child(
                 Chip::filter(format!("fc-{i}"), label)
                     .selected(self.filters[i])
@@ -888,8 +958,13 @@ impl Gallery {
             .child(filters)
             .child(inputs);
         out.push(
-            section(cx, "Chips", "Assist / Suggestion / Filter / Input（✕ で削除）", chips)
-                .into_any_element(),
+            section(
+                cx,
+                "Chips",
+                "Assist / Suggestion / Filter / Input（✕ で削除）",
+                chips,
+            )
+            .into_any_element(),
         );
 
         let image = |a: u32, b: u32| {
@@ -979,13 +1054,22 @@ impl Gallery {
             .child(
                 ListItem::new("li-2", "田中 美咲")
                     .supporting("了解です！")
-                    .leading(avatar("田", c.secondary_container, c.on_secondary_container))
+                    .leading(avatar(
+                        "田",
+                        c.secondary_container,
+                        c.on_secondary_container,
+                    ))
                     .trailing(Icon::new(IconName::MoreVert).color(c.on_surface_variant))
                     .on_click(|_, _, _| {}),
             );
         out.push(
-            section(cx, "Lists, Dividers & Badges", "1〜2 行のリスト項目とバッジ", list)
-                .into_any_element(),
+            section(
+                cx,
+                "Lists, Dividers & Badges",
+                "1〜2 行のリスト項目とバッジ",
+                list,
+            )
+            .into_any_element(),
         );
         out
     }
@@ -997,13 +1081,19 @@ impl Gallery {
             .flex()
             .flex_col()
             .gap(px(20.))
-            .child(caption(cx, format!("確定（{:.0}%）— 下のスライダーで変更", v * 100.)))
+            .child(caption(
+                cx,
+                format!("確定（{:.0}%）— 下のスライダーで変更", v * 100.),
+            ))
             .child(LinearProgress::new("lp-flat", Some(v)))
             .child(LinearProgress::new("lp-wavy", Some(v)).wavy(true))
-            .child(LinearProgress::new("lp-thick", Some(v)).wavy(true).thickness(8.))
             .child(
-                Slider::new("progress-slider", v)
-                    .on_change(Self::set(cx, |g, v| g.progress = v)),
+                LinearProgress::new("lp-thick", Some(v))
+                    .wavy(true)
+                    .thickness(8.),
+            )
+            .child(
+                Slider::new("progress-slider", v).on_change(Self::set(cx, |g, v| g.progress = v)),
             )
             .child(caption(cx, "不確定"))
             .child(LinearProgress::new("lp-ind", None))
@@ -1020,13 +1110,21 @@ impl Gallery {
 
         let circular = wrap_row()
             .gap(px(32.))
-            .child(labeled(muted(cx), "確定", CircularProgress::new("cp-0", Some(v))))
+            .child(labeled(
+                muted(cx),
+                "確定",
+                CircularProgress::new("cp-0", Some(v)),
+            ))
             .child(labeled(
                 muted(cx),
                 "確定 Wavy",
                 CircularProgress::new("cp-1", Some(v)).wavy(true),
             ))
-            .child(labeled(muted(cx), "不確定", CircularProgress::new("cp-2", None)))
+            .child(labeled(
+                muted(cx),
+                "不確定",
+                CircularProgress::new("cp-2", None),
+            ))
             .child(labeled(
                 muted(cx),
                 "不確定 Wavy",
@@ -1069,7 +1167,10 @@ impl Gallery {
             .gap(px(24.))
             .child(caption(cx, format!("連続値: {:.2}", self.volume)))
             .child(Slider::new("s-vol", self.volume).on_change(Self::set(cx, |g, v| g.volume = v)))
-            .child(caption(cx, format!("離散値（0〜5、ステップ 1）: {:.0}", self.rating)))
+            .child(caption(
+                cx,
+                format!("離散値（0〜5、ステップ 1）: {:.0}", self.rating),
+            ))
             .child(
                 Slider::new("s-rate", self.rating)
                     .range(0., 5.)
@@ -1100,13 +1201,21 @@ impl Gallery {
             );
         }
         out.push(
-            section(cx, "Track sizes", "Expressive では太いトラックも用意されている", sizes)
-                .into_any_element(),
+            section(
+                cx,
+                "Track sizes",
+                "Expressive では太いトラックも用意されている",
+                sizes,
+            )
+            .into_any_element(),
         );
         out
     }
 
-    fn log(cx: &mut Context<Self>, msg: &'static str) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static {
+    fn log(
+        cx: &mut Context<Self>,
+        msg: &'static str,
+    ) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static {
         let set = Self::set(cx, move |g, _: ()| g.menu_log = msg.into());
         move |_, w, cx| set((), w, cx)
     }
@@ -1121,19 +1230,45 @@ impl Gallery {
         let c = cx.m3().colors.clone();
 
         let edit_menu = Menu::new("edit-menu")
-            .item(MenuItem::new("切り取り").icon(IconName::ContentCut).trailing_text("Ctrl+X").on_click(Self::log(cx, "切り取り")))
-            .item(MenuItem::new("コピー").icon(IconName::ContentCopy).trailing_text("Ctrl+C").on_click(Self::log(cx, "コピー")))
-            .item(MenuItem::new("貼り付け").icon(IconName::ContentPaste).trailing_text("Ctrl+V").on_click(Self::log(cx, "貼り付け")))
+            .item(
+                MenuItem::new("切り取り")
+                    .icon(IconName::ContentCut)
+                    .trailing_text("Ctrl+X")
+                    .on_click(Self::log(cx, "切り取り")),
+            )
+            .item(
+                MenuItem::new("コピー")
+                    .icon(IconName::ContentCopy)
+                    .trailing_text("Ctrl+C")
+                    .on_click(Self::log(cx, "コピー")),
+            )
+            .item(
+                MenuItem::new("貼り付け")
+                    .icon(IconName::ContentPaste)
+                    .trailing_text("Ctrl+V")
+                    .on_click(Self::log(cx, "貼り付け")),
+            )
             .divider()
             .item(
                 MenuItem::new("共有").icon(IconName::Share).submenu(
                     Menu::new("share-sub")
-                        .item(MenuItem::new("メールで送信").icon(IconName::Mail).on_click(Self::log(cx, "メールで送信")))
-                        .item(MenuItem::new("リンクをコピー").icon(IconName::ContentCopy).on_click(Self::log(cx, "リンクをコピー")))
+                        .item(
+                            MenuItem::new("メールで送信")
+                                .icon(IconName::Mail)
+                                .on_click(Self::log(cx, "メールで送信")),
+                        )
+                        .item(
+                            MenuItem::new("リンクをコピー")
+                                .icon(IconName::ContentCopy)
+                                .on_click(Self::log(cx, "リンクをコピー")),
+                        )
                         .item(
                             MenuItem::new("その他").icon(IconName::MoreVert).submenu(
                                 Menu::new("share-sub2")
-                                    .item(MenuItem::new("ブックマーク").on_click(Self::log(cx, "ブックマーク")))
+                                    .item(
+                                        MenuItem::new("ブックマーク")
+                                            .on_click(Self::log(cx, "ブックマーク")),
+                                    )
                                     .item(MenuItem::new("印刷").on_click(Self::log(cx, "印刷"))),
                             ),
                         ),
@@ -1144,29 +1279,46 @@ impl Gallery {
         let sorts = ["名前", "更新日", "サイズ", "種類"];
         let mut sort_menu = Menu::new("sort-menu").header("並べ替え");
         for (i, s) in sorts.into_iter().enumerate() {
-            sort_menu = sort_menu.item(
-                MenuItem::new(s)
-                    .selected(self.sort_by == i)
-                    .on_click(cx.listener(move |g, _, _, cx| {
-                        g.sort_by = i;
-                        cx.notify();
-                    })),
-            );
+            sort_menu = sort_menu.item(MenuItem::new(s).selected(self.sort_by == i).on_click(
+                cx.listener(move |g, _, _, cx| {
+                    g.sort_by = i;
+                    cx.notify();
+                }),
+            ));
         }
 
         let account_menu = Menu::new("account-menu")
             .vibrant(true)
-            .item(MenuItem::new("プロフィール").icon(IconName::Person).supporting("名前・写真を編集").on_click(Self::log(cx, "プロフィール")))
-            .item(MenuItem::new("設定").icon(IconName::Settings).on_click(Self::log(cx, "設定")))
-            .item(MenuItem::new("ヘルプ").icon(IconName::Help).on_click(Self::log(cx, "ヘルプ")))
+            .item(
+                MenuItem::new("プロフィール")
+                    .icon(IconName::Person)
+                    .supporting("名前・写真を編集")
+                    .on_click(Self::log(cx, "プロフィール")),
+            )
+            .item(
+                MenuItem::new("設定")
+                    .icon(IconName::Settings)
+                    .on_click(Self::log(cx, "設定")),
+            )
+            .item(
+                MenuItem::new("ヘルプ")
+                    .icon(IconName::Help)
+                    .on_click(Self::log(cx, "ヘルプ")),
+            )
             .divider()
-            .item(MenuItem::new("ログアウト").icon(IconName::Logout).on_click(Self::log(cx, "ログアウト")));
+            .item(
+                MenuItem::new("ログアウト")
+                    .icon(IconName::Logout)
+                    .on_click(Self::log(cx, "ログアウト")),
+            );
 
         let dropdowns = wrap_row()
             .gap(px(16.))
             .child(DropdownMenu::new(
                 "dd-edit",
-                Button::new("dd-edit-btn", "編集").tonal().icon(IconName::Edit),
+                Button::new("dd-edit-btn", "編集")
+                    .tonal()
+                    .icon(IconName::Edit),
                 edit_menu,
             ))
             .child(DropdownMenu::new(
@@ -1189,10 +1341,24 @@ impl Gallery {
         let context = ContextMenuArea::new(
             "ctx-area",
             Menu::new("ctx-menu")
-                .item(MenuItem::new("戻る").icon(IconName::ArrowBack).trailing_text("Alt+←").on_click(Self::log(cx, "戻る")))
-                .item(MenuItem::new("再読み込み").icon(IconName::Refresh).trailing_text("F5").on_click(Self::log(cx, "再読み込み")))
+                .item(
+                    MenuItem::new("戻る")
+                        .icon(IconName::ArrowBack)
+                        .trailing_text("Alt+←")
+                        .on_click(Self::log(cx, "戻る")),
+                )
+                .item(
+                    MenuItem::new("再読み込み")
+                        .icon(IconName::Refresh)
+                        .trailing_text("F5")
+                        .on_click(Self::log(cx, "再読み込み")),
+                )
                 .divider()
-                .item(MenuItem::new("ブックマークに追加").icon(IconName::Bookmark).on_click(Self::log(cx, "ブックマーク"))),
+                .item(
+                    MenuItem::new("ブックマークに追加")
+                        .icon(IconName::Bookmark)
+                        .on_click(Self::log(cx, "ブックマーク")),
+                ),
         )
         .h(px(120.))
         .w_full()
@@ -1355,11 +1521,18 @@ impl Gallery {
                     .child(
                         Tabs::new("tabs-primary", self.primary_tab)
                             .tab(Tab::new(primary_names[0]).icon(IconName::Send))
-                            .tab(Tab::new(primary_names[1]).icon(IconName::Home).badge(Some(3)))
+                            .tab(
+                                Tab::new(primary_names[1])
+                                    .icon(IconName::Home)
+                                    .badge(Some(3)),
+                            )
                             .tab(Tab::new(primary_names[2]).icon(IconName::Star))
                             .on_select(Self::set(cx, |g, i| g.primary_tab = i)),
                     )
-                    .child(tab_body(format!("Primary: {}", primary_names[self.primary_tab]))),
+                    .child(tab_body(format!(
+                        "Primary: {}",
+                        primary_names[self.primary_tab]
+                    ))),
             )
             .child(
                 div()
@@ -1617,33 +1790,36 @@ impl Gallery {
         let c = cx.m3().colors.clone();
 
         // ----- シードカラー -----
-        let swatch = |id: String, color: gpui::Hsla, selected: bool, label: &str, check: gpui::Hsla| {
-            div()
-                .flex()
-                .flex_col()
-                .items_center()
-                .gap(px(6.))
-                .child(
-                    div()
-                        .id(gpui::ElementId::Name(id.into()))
-                        .size(px(48.))
-                        .rounded_full()
-                        .bg(color)
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .cursor_pointer()
-                        .border_2()
-                        .border_color(if selected { c.on_surface } else { color })
-                        .when(selected, |d| d.child(Icon::new(IconName::Check).color(check))),
-                )
-                .child(
-                    div()
-                        .m3_type(TypeScale::LabelMedium)
-                        .text_color(c.on_surface_variant)
-                        .child(label.to_string()),
-                )
-        };
+        let swatch =
+            |id: String, color: gpui::Hsla, selected: bool, label: &str, check: gpui::Hsla| {
+                div()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap(px(6.))
+                    .child(
+                        div()
+                            .id(gpui::ElementId::Name(id.into()))
+                            .size(px(48.))
+                            .rounded_full()
+                            .bg(color)
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .cursor_pointer()
+                            .border_2()
+                            .border_color(if selected { c.on_surface } else { color })
+                            .when(selected, |d| {
+                                d.child(Icon::new(IconName::Check).color(check))
+                            }),
+                    )
+                    .child(
+                        div()
+                            .m3_type(TypeScale::LabelMedium)
+                            .text_color(c.on_surface_variant)
+                            .child(label.to_string()),
+                    )
+            };
         fn pick(
             cx: &mut Context<Gallery>,
             seed: Option<usize>,
@@ -1694,7 +1870,11 @@ impl Gallery {
             .flex()
             .items_center()
             .gap(px(16.))
-            .child(div().w(px(120.)).child(caption(cx, format!("色相 {:.0}°", self.hue))))
+            .child(
+                div()
+                    .w(px(120.))
+                    .child(caption(cx, format!("色相 {:.0}°", self.hue))),
+            )
             .child(
                 div().flex_1().child(
                     Slider::new("hue-slider", self.hue)
@@ -1770,9 +1950,21 @@ impl Gallery {
                 tile("Error", c.error, c.on_error),
             ]))
             .child(row(vec![
-                tile("Primary container", c.primary_container, c.on_primary_container),
-                tile("Secondary container", c.secondary_container, c.on_secondary_container),
-                tile("Tertiary container", c.tertiary_container, c.on_tertiary_container),
+                tile(
+                    "Primary container",
+                    c.primary_container,
+                    c.on_primary_container,
+                ),
+                tile(
+                    "Secondary container",
+                    c.secondary_container,
+                    c.on_secondary_container,
+                ),
+                tile(
+                    "Tertiary container",
+                    c.tertiary_container,
+                    c.on_tertiary_container,
+                ),
                 tile("Error container", c.error_container, c.on_error_container),
             ]))
             .child(row(vec![
@@ -1780,7 +1972,11 @@ impl Gallery {
                 tile("Container low", c.surface_container_low, c.on_surface),
                 tile("Container", c.surface_container, c.on_surface),
                 tile("Container high", c.surface_container_high, c.on_surface),
-                tile("Container highest", c.surface_container_highest, c.on_surface),
+                tile(
+                    "Container highest",
+                    c.surface_container_highest,
+                    c.on_surface,
+                ),
             ]))
             .child(row(vec![
                 tile("On surface", c.on_surface, c.surface),
@@ -1828,12 +2024,12 @@ impl Gallery {
 
         let current = match self.seed {
             None => "ベースライン（#6750A4 の固定スキーム）".to_string(),
-            Some(usize::MAX) => format!(
-                "シード {}（色相 {:.0}°）",
-                hex(hue_color),
-                self.hue
+            Some(usize::MAX) => format!("シード {}（色相 {:.0}°）", hex(hue_color), self.hue),
+            Some(i) => format!(
+                "シード {} {}",
+                SEEDS[i].0,
+                hex(gpui::rgb(SEEDS[i].1).into())
             ),
-            Some(i) => format!("シード {} {}", SEEDS[i].0, hex(gpui::rgb(SEEDS[i].1).into())),
         };
 
         vec![
@@ -1933,8 +2129,15 @@ impl Gallery {
 
         // ----- 横スクロールするタブ -----
         let names = [
-            "ホーム", "おすすめ", "ランキング", "新着", "ジャンル", "ライブラリ", "履歴",
-            "ダウンロード", "設定",
+            "ホーム",
+            "おすすめ",
+            "ランキング",
+            "新着",
+            "ジャンル",
+            "ライブラリ",
+            "履歴",
+            "ダウンロード",
+            "設定",
         ];
         let mut tabs = Tabs::new("scroll-tabs", self.scroll_tab)
             .scrollable(true)
@@ -1973,7 +2176,11 @@ impl Gallery {
         let close_modal_side = Self::set(cx, |g, _: ()| g.side_modal_open = false);
         let side_content = |sheet: SideSheet| {
             sheet
-                .child(div().text_color(c.on_surface_variant).child("補足情報や設定を、本文を開いたまま横に表示します。"))
+                .child(
+                    div()
+                        .text_color(c.on_surface_variant)
+                        .child("補足情報や設定を、本文を開いたまま横に表示します。"),
+                )
                 .child(Checkbox::new("side-cb-1", true).label("通知を受け取る"))
                 .child(Checkbox::new("side-cb-2", false).label("自動で保存"))
                 .action(Button::new("side-cancel", "キャンセル").text())
@@ -1999,9 +2206,16 @@ impl Gallery {
                     .justify_center()
                     .gap(px(12.))
                     .child(
-                        Button::new("toggle-side", if self.side_open { "閉じる" } else { "開く" })
-                            .tonal()
-                            .on_click(move |_, w, cx| toggle_side((), w, cx)),
+                        Button::new(
+                            "toggle-side",
+                            if self.side_open {
+                                "閉じる"
+                            } else {
+                                "開く"
+                            },
+                        )
+                        .tonal()
+                        .on_click(move |_, w, cx| toggle_side((), w, cx)),
                     )
                     .child(div().text_color(c.on_surface_variant).child("本文")),
             )
@@ -2089,9 +2303,16 @@ impl Gallery {
                     .items_center()
                     .justify_center()
                     .child(
-                        Button::new("toggle-drawer", if self.drawer_open { "閉じる" } else { "開く" })
-                            .tonal()
-                            .on_click(move |_, w, cx| toggle_drawer((), w, cx)),
+                        Button::new(
+                            "toggle-drawer",
+                            if self.drawer_open {
+                                "閉じる"
+                            } else {
+                                "開く"
+                            },
+                        )
+                        .tonal()
+                        .on_click(move |_, w, cx| toggle_drawer((), w, cx)),
                     ),
             );
         let modal_frame = div()
@@ -2104,10 +2325,15 @@ impl Gallery {
             .border_color(c.outline_variant)
             .bg(c.surface)
             .child(
-                div().size_full().flex().items_center().justify_center().child(
-                    Button::new("open-drawer-modal", "モーダルを開く")
-                        .on_click(move |_, w, cx| open_drawer_modal((), w, cx)),
-                ),
+                div()
+                    .size_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        Button::new("open-drawer-modal", "モーダルを開く")
+                            .on_click(move |_, w, cx| open_drawer_modal((), w, cx)),
+                    ),
             )
             .child(drawer_items(
                 m3::NavigationDrawer::new("drawer-modal", self.drawer_modal_open)
@@ -2135,33 +2361,36 @@ impl Gallery {
         let close_full = Self::set(cx, |g, _: ()| g.full_open = false);
         let close_full2 = Self::set(cx, |g, _: ()| g.full_open = false);
         let full_field = self.fields.first().cloned();
-        let full_frame = div()
-            .relative()
-            .w_full()
-            .h(px(360.))
-            .rounded(shape::LARGE)
-            .overflow_hidden()
-            .border_1()
-            .border_color(c.outline_variant)
-            .bg(c.surface_container_low)
-            .child(
-                div()
-                    .size_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        Button::new("open-full", "全画面ダイアログを開く")
-                            .on_click(move |_, w, cx| open_full((), w, cx)),
-                    ),
-            )
-            .child(
-                FullScreenDialog::new("full-dlg", self.full_open, "新しい予定")
-                    .action("保存", move |_, w, cx| close_full2((), w, cx))
-                    .on_close(move |w, cx| close_full((), w, cx))
-                    .child(div().text_color(c.on_surface_variant).child("タイトルを入力して保存してください。✕ か Esc で破棄して閉じます。"))
-                    .children(full_field),
-            );
+        let full_frame =
+            div()
+                .relative()
+                .w_full()
+                .h(px(360.))
+                .rounded(shape::LARGE)
+                .overflow_hidden()
+                .border_1()
+                .border_color(c.outline_variant)
+                .bg(c.surface_container_low)
+                .child(
+                    div()
+                        .size_full()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            Button::new("open-full", "全画面ダイアログを開く")
+                                .on_click(move |_, w, cx| open_full((), w, cx)),
+                        ),
+                )
+                .child(
+                    FullScreenDialog::new("full-dlg", self.full_open, "新しい予定")
+                        .action("保存", move |_, w, cx| close_full2((), w, cx))
+                        .on_close(move |w, cx| close_full((), w, cx))
+                        .child(div().text_color(c.on_surface_variant).child(
+                            "タイトルを入力して保存してください。✕ か Esc で破棄して閉じます。",
+                        ))
+                        .children(full_field),
+                );
         out.push(
             section(
                 cx,
@@ -2173,7 +2402,9 @@ impl Gallery {
         );
 
         // ----- リッチツールチップ -----
-        let log = Self::set(cx, |g, _: ()| g.menu_log = "リッチツールチップのアクション".into());
+        let log = Self::set(cx, |g, _: ()| {
+            g.menu_log = "リッチツールチップのアクション".into()
+        });
         let action: ClickHandler = std::rc::Rc::new(move |_, w, cx| log((), w, cx));
         let rich = wrap_row()
             .gap(px(24.))
@@ -2185,7 +2416,11 @@ impl Gallery {
                         "タイトル・説明・アクションを持てます。マウスを乗せたまま中に入れます。",
                         Some(("詳しく見る", action)),
                     ))
-                    .child(Button::new("rt-btn-1", "アクション付き").tonal().icon(IconName::Help)),
+                    .child(
+                        Button::new("rt-btn-1", "アクション付き")
+                            .tonal()
+                            .icon(IconName::Help),
+                    ),
             )
             .child(
                 div()
@@ -2229,8 +2464,18 @@ impl Gallery {
                         .justify_end()
                         .p(px(16.))
                         .text_color(fg)
-                        .child(div().m3_type(TypeScale::HeadlineSmall).whitespace_nowrap().child(format!("項目 {}", i + 1)))
-                        .child(div().m3_type(TypeScale::BodyMedium).whitespace_nowrap().child("サブテキスト")),
+                        .child(
+                            div()
+                                .m3_type(TypeScale::HeadlineSmall)
+                                .whitespace_nowrap()
+                                .child(format!("項目 {}", i + 1)),
+                        )
+                        .child(
+                            div()
+                                .m3_type(TypeScale::BodyMedium)
+                                .whitespace_nowrap()
+                                .child("サブテキスト"),
+                        ),
                 );
             }
             cr
@@ -2258,7 +2503,14 @@ impl Gallery {
 
         // ----- Search bar / Search view -----
         let query = self.search_field.read(cx).text().to_string();
-        let words = ["Aurora", "Blue Hour", "Cascade", "Daybreak", "Echoes", "Firefly"];
+        let words = [
+            "Aurora",
+            "Blue Hour",
+            "Cascade",
+            "Daybreak",
+            "Echoes",
+            "Firefly",
+        ];
         let hits: Vec<&str> = words
             .iter()
             .copied()
@@ -2276,8 +2528,12 @@ impl Gallery {
             anchor = anchor.child(
                 ListItem::new(format!("sv-{i}"), *w)
                     .leading(
-                        Icon::new(if query.is_empty() { IconName::History } else { IconName::Search })
-                            .color(c.on_surface_variant),
+                        Icon::new(if query.is_empty() {
+                            IconName::History
+                        } else {
+                            IconName::Search
+                        })
+                        .color(c.on_surface_variant),
                     )
                     .on_click(move |_, w, cx| {
                         f.update(cx, |f, cx| f.set_text(name.clone(), cx));
@@ -2306,7 +2562,9 @@ impl Gallery {
                     .today(today)
                     .modal(true)
                     .range(self.date_range)
-                    .on_select(Self::set(cx, |g, d: m3::Date| g.date_range = g.date_range.pick(d)))
+                    .on_select(Self::set(cx, |g, d: m3::Date| {
+                        g.date_range = g.date_range.pick(d)
+                    }))
                     .on_month_change(Self::set(cx, |g, ym: (i32, u32)| g.range_view = ym)),
             )
             .child(
@@ -2483,8 +2741,13 @@ impl Gallery {
                     .on_select(Self::set(cx, |g, i| g.nav_bar = i)),
             );
         out.push(
-            section(cx, "Navigation bar", "アクティブインジケーターが中央からバネで広がる", nav)
-                .into_any_element(),
+            section(
+                cx,
+                "Navigation bar",
+                "アクティブインジケーターが中央からバネで広がる",
+                nav,
+            )
+            .into_any_element(),
         );
 
         // ----- Navigation rail（展開型 / モーダル展開型）-----
@@ -2597,7 +2860,9 @@ impl Gallery {
                     ),
             );
         }
-        out.push(section(cx, "Typography", "M3 タイプスケール 15 段階", type_scale).into_any_element());
+        out.push(
+            section(cx, "Typography", "M3 タイプスケール 15 段階", type_scale).into_any_element(),
+        );
         out
     }
 }
@@ -2629,16 +2894,28 @@ impl Render for Gallery {
             .footer(
                 div()
                     .id("theme-toggle-tt")
-                    .tooltip(m3::tooltip(if dark { "ライトテーマ" } else { "ダークテーマ" }))
+                    .tooltip(m3::tooltip(if dark {
+                        "ライトテーマ"
+                    } else {
+                        "ダークテーマ"
+                    }))
                     .child(
                         IconButton::new(
                             "theme-toggle",
-                            if dark { IconName::LightMode } else { IconName::DarkMode },
+                            if dark {
+                                IconName::LightMode
+                            } else {
+                                IconName::DarkMode
+                            },
                         )
                         .on_click(move |_, _, cx| {
                             m3::set_brightness(
                                 cx,
-                                if dark { Brightness::Light } else { Brightness::Dark },
+                                if dark {
+                                    Brightness::Light
+                                } else {
+                                    Brightness::Dark
+                                },
                             )
                         }),
                     ),
@@ -2653,7 +2930,9 @@ impl Render for Gallery {
         }
 
         let content = div()
-            .id(gpui::ElementId::Name(format!("content-{}", self.page).into()))
+            .id(gpui::ElementId::Name(
+                format!("content-{}", self.page).into(),
+            ))
             .flex_1()
             .h_full()
             .overflow_y_scroll()
@@ -2706,12 +2985,14 @@ impl Render for Gallery {
                     "削除したファイルは 30 日間ゴミ箱に保存され、その後完全に削除されます。",
                 )
                 .icon(IconName::Delete)
-                .action(Button::new("dlg-cancel", "キャンセル").text().on_click(
-                    cx.listener(|g, _, _, cx| {
-                        g.dialog = false;
-                        cx.notify();
-                    }),
-                ))
+                .action(
+                    Button::new("dlg-cancel", "キャンセル")
+                        .text()
+                        .on_click(cx.listener(|g, _, _, cx| {
+                            g.dialog = false;
+                            cx.notify();
+                        })),
+                )
                 .action(Button::new("dlg-ok", "削除").text().on_click(cx.listener(
                     |g, _, _, cx| {
                         g.dialog = false;

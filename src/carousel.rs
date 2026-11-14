@@ -157,7 +157,11 @@ impl RenderOnce for Carousel {
         let pos_goal = if dragging { live } else { target }.clamp(-0.4, max_pos + 0.4);
 
         let motion = theme.motion;
-        let spring = if dragging { motion.fast_effects } else { motion.default_spatial };
+        let spring = if dragging {
+            motion.fast_effects
+        } else {
+            motion.default_spatial
+        };
 
         // ----- 項目 -----
         let lead_w = base[0];
@@ -255,7 +259,11 @@ impl RenderOnce for Carousel {
                             let max = n.saturating_sub(vis) as f32;
                             let d = s.live - p0;
                             // 少し動かしただけでも次の項目へ進む
-                            let steps = if d.abs() > 0.2 { d.abs().round().max(1.) * d.signum() } else { 0. };
+                            let steps = if d.abs() > 0.2 {
+                                d.abs().round().max(1.) * d.signum()
+                            } else {
+                                0.
+                            };
                             s.target = (p0 + steps).clamp(0., max);
                             cx.notify();
                         }
@@ -349,12 +357,19 @@ mod tests {
 
     #[test]
     fn slots_fit_inside_the_viewport() {
-        for kind in [CarouselKind::MultiBrowse, CarouselKind::Hero, CarouselKind::FullScreen] {
+        for kind in [
+            CarouselKind::MultiBrowse,
+            CarouselKind::Hero,
+            CarouselKind::FullScreen,
+        ] {
             for w in [400., 640., 972., 1400.] {
                 let s = slots(kind, w, GAP);
                 let total: f32 = s.iter().sum::<f32>() + GAP * (s.len() as f32 - 1.);
                 assert!(total <= w + 0.5, "{kind:?} at {w}: {total}");
-                assert!(s.windows(2).all(|p| p[0] >= p[1] - 0.001), "{kind:?}: not descending");
+                assert!(
+                    s.windows(2).all(|p| p[0] >= p[1] - 0.001),
+                    "{kind:?}: not descending"
+                );
             }
         }
     }
@@ -366,7 +381,10 @@ mod tests {
             assert_eq!(item_width(CarouselKind::MultiBrowse, &base, i, 0.), *w);
         }
         // 範囲外の項目は幅 0
-        assert_eq!(item_width(CarouselKind::MultiBrowse, &base, base.len(), 0.), 0.);
+        assert_eq!(
+            item_width(CarouselKind::MultiBrowse, &base, base.len(), 0.),
+            0.
+        );
     }
 
     #[test]
@@ -385,7 +403,10 @@ mod tests {
         for step in 1..=20 {
             let pos = step as f32 / 20.;
             let w = item_width(CarouselKind::MultiBrowse, &base, 1, pos);
-            assert!((w - prev).abs() < base[0] / 10., "jump at {pos}: {prev} -> {w}");
+            assert!(
+                (w - prev).abs() < base[0] / 10.,
+                "jump at {pos}: {prev} -> {w}"
+            );
             prev = w;
         }
     }
@@ -394,7 +415,10 @@ mod tests {
     fn uncontained_items_keep_a_fixed_width() {
         let base = slots(CarouselKind::Uncontained, 900., GAP);
         for pos in [0., 0.5, 3.25] {
-            assert_eq!(item_width(CarouselKind::Uncontained, &base, 4, pos), base[0]);
+            assert_eq!(
+                item_width(CarouselKind::Uncontained, &base, 4, pos),
+                base[0]
+            );
         }
     }
 

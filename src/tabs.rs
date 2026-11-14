@@ -2,8 +2,8 @@
 
 use gpui::AnimationExt as _;
 use gpui::{
-    App, Bounds, ElementId, IntoElement, Pixels, RenderOnce, SharedString, SpringAnimation,
-    Window, canvas, div, prelude::*, px,
+    App, Bounds, ElementId, IntoElement, Pixels, RenderOnce, SharedString, SpringAnimation, Window,
+    canvas, div, prelude::*, px,
 };
 
 use super::{
@@ -180,7 +180,9 @@ impl RenderOnce for Tabs {
                 content = content.flex_col();
             }
             if let Some(icon) = tab.icon {
-                let mut icon_box = div().relative().child(Icon::new(icon).size(px(24.)).color(fg));
+                let mut icon_box = div()
+                    .relative()
+                    .child(Icon::new(icon).size(px(24.)).color(fg));
                 if let Some(b) = tab.badge {
                     icon_box = icon_box.child(
                         div()
@@ -213,7 +215,11 @@ impl RenderOnce for Tabs {
                 .px(px(16.))
                 .cursor_pointer()
                 .hover(move |s| s.bg(layer))
-                .child(ripple_overlay(&ripple, c.on_surface, gpui::Corners::all(px(0.))))
+                .child(ripple_overlay(
+                    &ripple,
+                    c.on_surface,
+                    gpui::Corners::all(px(0.)),
+                ))
                 .child(
                     canvas(
                         move |b, _, cx| {
@@ -262,12 +268,16 @@ impl RenderOnce for Tabs {
 
         // インジケーター
         let l = layout.read(cx);
-        if let (Some(tab_b), Some(content_b)) = (l.tabs.get(self.selected), l.contents.get(self.selected))
+        if let (Some(tab_b), Some(content_b)) =
+            (l.tabs.get(self.selected), l.contents.get(self.selected))
             && tab_b.size.width > px(0.)
         {
             // スクロールするときは、内容の左端（スクロールで動く）を基準にする
             let origin = if scrollable {
-                l.tabs.first().map(|b| b.origin.x).unwrap_or(l.container.origin.x)
+                l.tabs
+                    .first()
+                    .map(|b| b.origin.x)
+                    .unwrap_or(l.container.origin.x)
             } else {
                 l.container.origin.x
             };
@@ -315,4 +325,3 @@ impl RenderOnce for Tabs {
         }
     }
 }
-

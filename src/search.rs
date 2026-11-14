@@ -212,7 +212,13 @@ impl RenderOnce for SearchView {
             .when_some(self.height, |d, h| d.h(px(h)))
             .overflow_hidden()
             .bg(c.surface_container_high)
-            .map(|d| if self.docked { d.rounded(shape::EXTRA_LARGE) } else { d })
+            .map(|d| {
+                if self.docked {
+                    d.rounded(shape::EXTRA_LARGE)
+                } else {
+                    d
+                }
+            })
             .m3_type(TypeScale::BodyLarge)
             .child(header)
             .child(Divider::horizontal())
@@ -296,7 +302,10 @@ impl RenderOnce for SearchAnchor {
         let state = window.use_keyed_state(
             SharedString::from(format!("{}::anchor", self.id)),
             cx,
-            |_, _| AnchorState { was_focused: false, was_open: false },
+            |_, _| AnchorState {
+                was_focused: false,
+                was_open: false,
+            },
         );
         let (was_focused, was_open) = {
             let s = state.read(cx);

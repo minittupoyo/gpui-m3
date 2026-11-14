@@ -211,46 +211,42 @@ impl RenderOnce for FabMenu {
                 .on_click(move |_, _, cx| toggle(!open, cx)),
             &fab_ripple,
         )
-            .with_spring(
-                ElementId::Name(format!("{id}::morph").into()),
-                SpringAnimation::new(theme.motion.fast_spatial).to(if open { 1. } else { 0. }),
-                move |el, t| {
-                    let tc = t.clamp(0., 1.);
-                    let bg = mix(container, close_bg, tc);
-                    let fg = mix(on_container, on_close, tc);
-                    let radius = lerp(16., 28., t.clamp(0., 1.1));
-                    let hover_bg = state_layer(bg, fg, state::HOVER);
-                    let icon = |name: IconName, opacity: f32, angle: f32| {
-                        svg()
-                            .absolute()
-                            .top(px(16.))
-                            .left(px(16.))
-                            .size(px(24.))
-                            .path(name.path())
-                            .text_color(fg.opacity(opacity))
-                            .with_transformation(Transformation::rotate(radians(angle)))
-                    };
-                    el.rounded(px(radius))
-                        .bg(bg)
-                        .hover(move |s| s.bg(hover_bg))
-                        .m3_elevation(if open { 2 } else { 3 }, shadow)
-                        .child(ripple_overlay(
-                            &fab_ripple_overlay,
-                            fg,
-                            gpui::Corners::all(px(radius)),
-                        ))
-                        .child(icon(
-                            base_icon,
-                            1. - tc,
-                            t * std::f32::consts::FRAC_PI_2,
-                        ))
-                        .child(icon(
-                            IconName::Close,
-                            tc,
-                            (t - 1.) * std::f32::consts::FRAC_PI_2,
-                        ))
-                },
-            );
+        .with_spring(
+            ElementId::Name(format!("{id}::morph").into()),
+            SpringAnimation::new(theme.motion.fast_spatial).to(if open { 1. } else { 0. }),
+            move |el, t| {
+                let tc = t.clamp(0., 1.);
+                let bg = mix(container, close_bg, tc);
+                let fg = mix(on_container, on_close, tc);
+                let radius = lerp(16., 28., t.clamp(0., 1.1));
+                let hover_bg = state_layer(bg, fg, state::HOVER);
+                let icon = |name: IconName, opacity: f32, angle: f32| {
+                    svg()
+                        .absolute()
+                        .top(px(16.))
+                        .left(px(16.))
+                        .size(px(24.))
+                        .path(name.path())
+                        .text_color(fg.opacity(opacity))
+                        .with_transformation(Transformation::rotate(radians(angle)))
+                };
+                el.rounded(px(radius))
+                    .bg(bg)
+                    .hover(move |s| s.bg(hover_bg))
+                    .m3_elevation(if open { 2 } else { 3 }, shadow)
+                    .child(ripple_overlay(
+                        &fab_ripple_overlay,
+                        fg,
+                        gpui::Corners::all(px(radius)),
+                    ))
+                    .child(icon(base_icon, 1. - tc, t * std::f32::consts::FRAC_PI_2))
+                    .child(icon(
+                        IconName::Close,
+                        tc,
+                        (t - 1.) * std::f32::consts::FRAC_PI_2,
+                    ))
+            },
+        );
 
         let close_out = set_open.clone();
         let close_esc = set_open.clone();

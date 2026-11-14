@@ -93,7 +93,12 @@ impl RenderOnce for BottomSheet {
         );
         let (dragging, drag, height, expanded) = {
             let s = state.read(cx);
-            (s.drag_start.is_some(), s.drag, s.height.max(200.), s.expanded)
+            (
+                s.drag_start.is_some(),
+                s.drag,
+                s.height.max(200.),
+                s.expanded,
+            )
         };
         let peek = self.peek;
         let modal = self.modal;
@@ -262,15 +267,19 @@ impl RenderOnce for BottomSheet {
             root
         };
         root.with_spring(
-                ElementId::Name(format!("{id}::open").into()),
-                SpringAnimation::new(motion.default_spatial).to(if open { 1. } else { 0. }),
-                move |el, t| {
-                    if !open && t < 0.01 {
-                        return el.hidden();
-                    }
-                    let el = if modal { el.bg(c.scrim.opacity(0.32 * t.clamp(0., 1.))) } else { el };
-                    el                        .pb(px(-(1. - t) * (height + 40.)))
-                },
-            )
+            ElementId::Name(format!("{id}::open").into()),
+            SpringAnimation::new(motion.default_spatial).to(if open { 1. } else { 0. }),
+            move |el, t| {
+                if !open && t < 0.01 {
+                    return el.hidden();
+                }
+                let el = if modal {
+                    el.bg(c.scrim.opacity(0.32 * t.clamp(0., 1.)))
+                } else {
+                    el
+                };
+                el.pb(px(-(1. - t) * (height + 40.)))
+            },
+        )
     }
 }
