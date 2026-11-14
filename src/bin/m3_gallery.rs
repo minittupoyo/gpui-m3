@@ -108,6 +108,9 @@ struct Gallery {
     time: (u32, u32),
     time_mode: m3::TimeMode,
     time_24h: bool,
+    drawer_open: bool,
+    drawer_modal_open: bool,
+    drawer_sel: usize,
 }
 
 impl Gallery {
@@ -259,6 +262,9 @@ impl Gallery {
             time: (9, 41),
             time_mode: m3::TimeMode::Hour,
             time_24h: false,
+            drawer_open: true,
+            drawer_modal_open: false,
+            drawer_sel: 0,
             page: std::env::var("M3_PAGE").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
             toggles: [false, true, false, true, false],
             favorite: [true, false, true, false],
@@ -2025,6 +2031,88 @@ impl Gallery {
                     .flex()
                     .gap(px(16.))
                     .child(div().flex_1().child(inline_frame))
+                    .child(div().flex_1().child(modal_frame)),
+            )
+            .into_any_element(),
+        );
+
+        // ----- ナビゲーションドロワー -----
+        let toggle_drawer = Self::set(cx, |g, _: ()| g.drawer_open = !g.drawer_open);
+        let open_drawer_modal = Self::set(cx, |g, _: ()| g.drawer_modal_open = true);
+        let close_drawer_modal = Self::set(cx, |g, _: ()| g.drawer_modal_open = false);
+        let sel_std = Self::set(cx, |g, i: usize| g.drawer_sel = i);
+        let sel_modal = Self::set(cx, |g, i: usize| g.drawer_sel = i);
+        let drawer_items = |d: m3::NavigationDrawer| {
+            d.headline("メール")
+                .item(NavItem::new(IconName::Mail, "受信トレイ").badge(Some(24)))
+                .item(NavItem::new(IconName::Send, "送信済み"))
+                .item(NavItem::new(IconName::Favorite, "スター付き"))
+                .item(NavItem::new(IconName::Delete, "ゴミ箱"))
+                .divider()
+                .section("ラベル")
+                .item(NavItem::new(IconName::Label, "仕事"))
+                .item(NavItem::new(IconName::Settings, "設定"))
+                .selected(self.drawer_sel)
+        };
+        let std_frame = div()
+            .relative()
+            .w_full()
+            .h(px(520.))
+            .flex()
+            .rounded(shape::LARGE)
+            .overflow_hidden()
+            .border_1()
+            .border_color(c.outline_variant)
+            .bg(c.surface)
+            .child(drawer_items(
+                m3::NavigationDrawer::new("drawer-std", self.drawer_open)
+                    .width(280.)
+                    .on_select(move |i, w, cx| sel_std(i, w, cx)),
+            ))
+            .child(
+                div()
+                    .flex_1()
+                    .h_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        Button::new("toggle-drawer", if self.drawer_open { "閉じる" } else { "開く" })
+                            .tonal()
+                            .on_click(move |_, w, cx| toggle_drawer((), w, cx)),
+                    ),
+            );
+        let modal_frame = div()
+            .relative()
+            .w_full()
+            .h(px(520.))
+            .rounded(shape::LARGE)
+            .overflow_hidden()
+            .border_1()
+            .border_color(c.outline_variant)
+            .bg(c.surface)
+            .child(
+                div().size_full().flex().items_center().justify_center().child(
+                    Button::new("open-drawer-modal", "モーダルを開く")
+                        .on_click(move |_, w, cx| open_drawer_modal((), w, cx)),
+                ),
+            )
+            .child(drawer_items(
+                m3::NavigationDrawer::new("drawer-modal", self.drawer_modal_open)
+                    .modal(true)
+                    .width(280.)
+                    .on_select(move |i, w, cx| sel_modal(i, w, cx))
+                    .on_close(move |w, cx| close_drawer_modal((), w, cx)),
+            ));
+        out.push(
+            section(
+                cx,
+                "Navigation drawer",
+                "左: 標準（本文を押し出す）。右: モーダル（スクリムの上に左から重ねる。項目選択・Esc・スクリムで閉じる）",
+                div()
+                    .flex()
+                    .gap(px(16.))
+                    .child(div().flex_1().child(std_frame))
                     .child(div().flex_1().child(modal_frame)),
             )
             .into_any_element(),
