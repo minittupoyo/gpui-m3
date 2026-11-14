@@ -287,22 +287,22 @@ impl RenderOnce for Menu {
 // ---------------------------------------------------------------------------
 
 #[derive(Default)]
-struct PopupState {
-    open: bool,
+pub(crate) struct PopupState {
+    pub(crate) open: bool,
     position: Option<Point<Pixels>>,
     dismissed_at: Option<Instant>,
-    trigger_bounds: Bounds<Pixels>,
+    pub(crate) trigger_bounds: Bounds<Pixels>,
 }
 
 impl PopupState {
     /// 外側クリックで閉じた直後のトリガークリックで、再度開かないようにする
-    fn recently_dismissed(&self) -> bool {
+    pub(crate) fn recently_dismissed(&self) -> bool {
         self.dismissed_at
             .is_some_and(|t| t.elapsed() < Duration::from_millis(250))
     }
 }
 
-fn popup_state(id: &SharedString, window: &mut Window, cx: &mut App) -> gpui::Entity<PopupState> {
+pub(crate) fn popup_state(id: &SharedString, window: &mut Window, cx: &mut App) -> gpui::Entity<PopupState> {
     window.use_keyed_state(
         SharedString::from(format!("{id}::popup")),
         cx,
@@ -310,7 +310,7 @@ fn popup_state(id: &SharedString, window: &mut Window, cx: &mut App) -> gpui::En
     )
 }
 
-fn dismisser(state: &gpui::Entity<PopupState>) -> impl Fn(&mut Window, &mut App) + 'static {
+pub(crate) fn dismisser(state: &gpui::Entity<PopupState>) -> impl Fn(&mut Window, &mut App) + 'static {
     let state = state.clone();
     move |_, cx| {
         state.update(cx, |s, cx| {

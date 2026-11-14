@@ -13,7 +13,7 @@ use gpui::{
 use gpui_platform::application;
 use gpui_test::m3::{self, *};
 
-const PAGES: [(&str, IconName); 9] = [
+const PAGES: [(&str, IconName); 10] = [
     ("Buttons", IconName::Home),
     ("Selection", IconName::CheckBox),
     ("Chips & Cards", IconName::Label),
@@ -23,6 +23,18 @@ const PAGES: [(&str, IconName); 9] = [
     ("Text fields", IconName::Edit),
     ("Menus", IconName::Sort),
     ("App bars & Tabs", IconName::Bookmark),
+    ("Color", IconName::Palette),
+];
+
+/// Dynamic color のプリセット（名前, シード）
+const SEEDS: [(&str, u32); 7] = [
+    ("Purple", 0x6750A4),
+    ("Red", 0xB33B15),
+    ("Orange", 0xE8A33D),
+    ("Green", 0x63A002),
+    ("Teal", 0x006A6A),
+    ("Blue", 0x0061A4),
+    ("Pink", 0xC2185B),
 ];
 
 struct Gallery {
@@ -66,6 +78,16 @@ struct Gallery {
     primary_tab: usize,
     secondary_tab: usize,
     sheet_open: bool,
+    // toolbars
+    tb_sel: [usize; 4],
+    tb_visible: bool,
+    tb_scroll: gpui::ScrollHandle,
+    // dynamic color
+    /// None = ベースライン、Some(i) = SEEDS[i]、Some(usize::MAX) = 色相スライダー
+    seed: Option<usize>,
+    hue: f32,
+    variant: usize,
+    contrast: usize,
 }
 
 impl Gallery {
@@ -177,6 +199,13 @@ impl Gallery {
             primary_tab: 0,
             secondary_tab: 0,
             sheet_open: false,
+            tb_sel: [0, 1, 2, 0],
+            tb_visible: true,
+            tb_scroll: gpui::ScrollHandle::new(),
+            seed: None,
+            hue: 200.,
+            variant: 0,
+            contrast: 0,
             page: 0,
             toggles: [false, true, false, true, false],
             favorite: [true, false, true, false],
@@ -401,6 +430,61 @@ impl Gallery {
                 "Toggle buttons",
                 "選択すると色が変わり、丸 ⇄ 角 に形がモーフする",
                 toggles,
+            )
+            .into_any_element(),
+        );
+
+        // Split buttons
+        let split_menu = |cx: &mut Context<Self>, id: &str| {
+            Menu::new(format!("{id}-menu"))
+                .item(MenuItem::new("下書きとして保存").icon(IconName::Edit).on_click(Self::log(cx, "下書きとして保存")))
+                .item(MenuItem::new("コピーを保存").icon(IconName::ContentCopy).on_click(Self::log(cx, "コピーを保存")))
+                .divider()
+                .item(MenuItem::new("共有して保存").icon(IconName::Share).on_click(Self::log(cx, "共有して保存")))
+        };
+        let mut split_variants = wrap_row();
+        for v in [
+            ButtonVariant::Filled,
+            ButtonVariant::Tonal,
+            ButtonVariant::Elevated,
+            ButtonVariant::Outlined,
+        ] {
+            let id = format!("split-{}", v.name());
+            let menu = split_menu(cx, &id);
+            split_variants = split_variants.child(
+                SplitButton::new(id, v.name(), menu)
+                    .variant(v)
+                    .icon(IconName::Send)
+                    .on_click(Self::log(cx, "メインアクション")),
+            );
+        }
+        let mut split_sizes = wrap_row().items_end();
+        for s in ComponentSize::ALL {
+            let id = format!("split-size-{}", s.name());
+            let menu = split_menu(cx, &id);
+            split_sizes = split_sizes.child(labeled(
+                muted(cx),
+                s.name(),
+                SplitButton::new(id, "保存", menu)
+                    .tonal()
+                    .size(s)
+                    .on_click(Self::log(cx, "保存")),
+            ));
+        }
+        let split_disabled = SplitButton::new("split-disabled", "Disabled", split_menu(cx, "split-disabled")).disabled(true);
+        out.push(
+            section(
+                cx,
+                "Split buttons",
+                "左はメインアクション、右はメニュー。ホバー・押下で内側の角が丸くなり、開くと右側が正円にモーフしてシェブロンが回転",
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(20.))
+                    .child(split_variants)
+                    .child(wrap_row().child(split_disabled))
+                    .child(split_sizes)
+                    .child(caption(cx, format!("最後に選んだ項目: {}", self.menu_log))),
             )
             .into_any_element(),
         );
@@ -1245,6 +1329,451 @@ impl Gallery {
                     }))),
             )
             .into_any_element(),
+            self.toolbars_section(cx),
+        ]
+    }
+
+    fn toolbars_section(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let c = cx.m3().colors.clone();
+        let icons = [
+            (IconName::Edit, "編集"),
+            (IconName::Image, "画像"),
+            (IconName::Label, "ラベル"),
+            (IconName::Share, "共有"),
+            (IconName::MoreVert, "その他"),
+        ];
+        // k 番目のツールバーの項目一覧を作る
+        let actions = |cx: &mut Context<Self>, k: usize, sel: usize, n: usize| {
+            icons
+                .iter()
+                .take(n)
+                .enumerate()
+                .map(|(i, (icon, tip))| {
+                    ToolbarItem::action(*icon)
+                        .tooltip(*tip)
+                        .selected(i == sel)
+                        .on_click(cx.listener(move |g, _, _, cx| {
+                            g.tb_sel[k] = i;
+                            cx.notify();
+                        }))
+                })
+                .collect::<Vec<_>>()
+        };
+        let frame = |content: gpui::Div| {
+            div()
+                .relative()
+                .w_full()
+                .h(px(140.))
+                .rounded(shape::LARGE)
+                .overflow_hidden()
+                .bg(c.surface)
+                .border_1()
+                .border_color(c.outline_variant)
+                .child(content)
+        };
+
+        // Docked
+        let mut docked = DockedToolbar::new("tb-docked");
+        for a in actions(cx, 0, self.tb_sel[0], 5) {
+            docked = docked.item(a);
+        }
+        let mut docked_v = DockedToolbar::new("tb-docked-v").vibrant(true);
+        for a in actions(cx, 1, self.tb_sel[1], 5) {
+            docked_v = docked_v.item(a);
+        }
+
+        // Floating（横・FAB 付き / Vibrant）
+        let mut floating = FloatingToolbar::new("tb-float").fab(IconName::Add, None);
+        for a in actions(cx, 2, self.tb_sel[2], 4) {
+            floating = floating.item(a);
+        }
+        let mut vertical = FloatingToolbar::new("tb-vert").vibrant(true).vertical(true);
+        for a in actions(cx, 3, self.tb_sel[3], 4) {
+            vertical = vertical.item(a);
+        }
+
+        // スクロールで隠れるデモ
+        let mut list = div().flex().flex_col().gap(px(8.)).p(px(16.));
+        for i in 0..20 {
+            list = list.child(
+                div()
+                    .h(px(56.))
+                    .rounded(shape::MEDIUM)
+                    .bg(c.surface_container_low)
+                    .flex()
+                    .items_center()
+                    .px(px(16.))
+                    .text_color(c.on_surface_variant)
+                    .child(format!("ノート {}", i + 1)),
+            );
+        }
+        let mut hiding = FloatingToolbar::new("tb-hide")
+            .vibrant(true)
+            .visible(self.tb_visible)
+            .fab(IconName::Edit, None);
+        for (icon, tip) in icons.iter().take(3) {
+            hiding = hiding.item(ToolbarItem::action(*icon).tooltip(*tip));
+        }
+        let scroller = div()
+            .relative()
+            .w(px(400.))
+            .h(px(420.))
+            .flex_none()
+            .rounded(shape::EXTRA_LARGE)
+            .overflow_hidden()
+            .bg(c.surface)
+            .border_1()
+            .border_color(c.outline_variant)
+            .child(
+                div()
+                    .id("tb-scroll")
+                    .size_full()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.tb_scroll)
+                    .on_scroll(cx.listener(|g, e: &gpui::ScrollEvent, _, cx| {
+                        let dy = f32::from(e.delta.pixel_delta(px(20.)).y);
+                        let visible = dy > 0.;
+                        if dy != 0. && g.tb_visible != visible {
+                            g.tb_visible = visible;
+                            cx.notify();
+                        }
+                        cx.stop_propagation();
+                    }))
+                    .child(list),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .right_0()
+                    .bottom(px(16.))
+                    .flex()
+                    .justify_center()
+                    .child(hiding),
+            );
+
+        section(
+            cx,
+            "Toolbars",
+            "Docked（Standard / Vibrant）、Floating（横・FAB 付き / 縦）、スクロールで隠れる Floating。選択中の項目はピル型に広がる",
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(16.))
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(16.))
+                        .child(div().flex_1().child(frame(
+                            div().size_full().flex().flex_col().justify_end().child(docked),
+                        )))
+                        .child(div().flex_1().child(frame(
+                            div()
+                                .size_full()
+                                .flex()
+                                .flex_col()
+                                .justify_end()
+                                .child(docked_v),
+                        ))),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(32.))
+                        .child(floating)
+                        .child(vertical),
+                )
+                .child(caption(cx, "↓ 中身を下へスクロールすると隠れ、上へスクロールすると戻る"))
+                .child(scroller),
+        )
+        .into_any_element()
+    }
+
+    /// 現在の選択から Dynamic color を適用する
+    fn apply_color(&self, cx: &mut App) {
+        let seed = match self.seed {
+            None => None,
+            Some(usize::MAX) => Some(seed_from_hue(self.hue)),
+            Some(i) => Some(SEEDS[i].1),
+        };
+        let contrast = [0., 0.5, 1.][self.contrast];
+        let config = seed.map(|s| {
+            DynamicColorConfig::new(s)
+                .variant(SchemeVariant::ALL[self.variant])
+                .contrast(contrast)
+        });
+        m3::set_dynamic_color(cx, config);
+    }
+
+    /// 状態を更新してテーマを作り直すハンドラ
+    fn set_color<V: 'static>(
+        cx: &mut Context<Self>,
+        f: impl Fn(&mut Self, V) + 'static,
+    ) -> impl Fn(V, &mut Window, &mut App) + 'static {
+        let this = cx.entity().downgrade();
+        move |v, _, cx| {
+            this.update(cx, |g, cx| {
+                f(g, v);
+                g.apply_color(cx);
+                cx.notify();
+            })
+            .ok();
+        }
+    }
+
+    fn page_color(&mut self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let c = cx.m3().colors.clone();
+
+        // ----- シードカラー -----
+        let swatch = |id: String, color: gpui::Hsla, selected: bool, label: &str, check: gpui::Hsla| {
+            div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap(px(6.))
+                .child(
+                    div()
+                        .id(gpui::ElementId::Name(id.into()))
+                        .size(px(48.))
+                        .rounded_full()
+                        .bg(color)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .border_2()
+                        .border_color(if selected { c.on_surface } else { color })
+                        .when(selected, |d| d.child(Icon::new(IconName::Check).color(check))),
+                )
+                .child(
+                    div()
+                        .m3_type(TypeScale::LabelMedium)
+                        .text_color(c.on_surface_variant)
+                        .child(label.to_string()),
+                )
+        };
+        fn pick(
+            cx: &mut Context<Gallery>,
+            seed: Option<usize>,
+        ) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static {
+            let set = Gallery::set_color(cx, move |g, _: ()| g.seed = seed);
+            move |_, w, cx| set((), w, cx)
+        }
+        let mut swatches = wrap_row().gap(px(16.)).items_start().child(
+            div()
+                .id("seed-base-wrap")
+                .on_click(pick(cx, None))
+                .child(swatch(
+                    "seed-base".into(),
+                    gpui::rgb(0x6750A4).into(),
+                    self.seed.is_none(),
+                    "Baseline（固定）",
+                    gpui::white(),
+                )),
+        );
+        for (i, (name, seed)) in SEEDS.iter().enumerate() {
+            swatches = swatches.child(
+                div()
+                    .id(gpui::ElementId::Name(format!("seed-{i}-wrap").into()))
+                    .on_click(pick(cx, Some(i)))
+                    .child(swatch(
+                        format!("seed-{i}"),
+                        gpui::rgb(*seed).into(),
+                        self.seed == Some(i),
+                        name,
+                        gpui::white(),
+                    )),
+            );
+        }
+        let hue_color: gpui::Hsla = gpui::rgb(seed_from_hue(self.hue)).into();
+        swatches = swatches.child(
+            div()
+                .id("seed-hue-wrap")
+                .on_click(pick(cx, Some(usize::MAX)))
+                .child(swatch(
+                    "seed-hue".into(),
+                    hue_color,
+                    self.seed == Some(usize::MAX),
+                    "カスタム",
+                    gpui::white(),
+                )),
+        );
+        let hue_slider = div()
+            .flex()
+            .items_center()
+            .gap(px(16.))
+            .child(div().w(px(120.)).child(caption(cx, format!("色相 {:.0}°", self.hue))))
+            .child(
+                div().flex_1().child(
+                    Slider::new("hue-slider", self.hue)
+                        .range(0., 360.)
+                        .on_change(Self::set_color(cx, |g, v: f32| {
+                            g.hue = v;
+                            g.seed = Some(usize::MAX);
+                        })),
+                ),
+            );
+
+        // ----- 方式とコントラスト -----
+        let mut variants = wrap_row().gap(px(8.));
+        for (i, v) in SchemeVariant::ALL.into_iter().enumerate() {
+            let set = Self::set_color(cx, move |g, _: ()| {
+                g.variant = i;
+                if g.seed.is_none() {
+                    g.seed = Some(0);
+                }
+            });
+            variants = variants.child(
+                Chip::filter(format!("variant-{i}"), v.name())
+                    .selected(self.variant == i)
+                    .on_click(move |_, w, cx| set((), w, cx)),
+            );
+        }
+        let contrast = ConnectedButtonGroup::new("contrast")
+            .item(ButtonGroupItem::new("標準"))
+            .item(ButtonGroupItem::new("中"))
+            .item(ButtonGroupItem::new("高"))
+            .selected((0..3).map(|i| i == self.contrast).collect())
+            .on_toggle(Self::set_color(cx, |g, i: usize| {
+                g.contrast = i;
+                if g.seed.is_none() {
+                    g.seed = Some(0);
+                }
+            }));
+
+        // ----- カラーロール -----
+        let hex = |h: gpui::Hsla| {
+            let r = gpui::Rgba::from(h);
+            format!(
+                "#{:02X}{:02X}{:02X}",
+                (r.r * 255.).round() as u8,
+                (r.g * 255.).round() as u8,
+                (r.b * 255.).round() as u8
+            )
+        };
+        let tile = |name: &str, bg: gpui::Hsla, fg: gpui::Hsla| {
+            div()
+                .flex_1()
+                .min_w(px(150.))
+                .h(px(72.))
+                .p(px(10.))
+                .flex()
+                .flex_col()
+                .justify_between()
+                .rounded(shape::MEDIUM)
+                .bg(bg)
+                .text_color(fg)
+                .child(div().m3_type(TypeScale::LabelLarge).child(name.to_string()))
+                .child(div().m3_type(TypeScale::LabelSmall).child(hex(bg)))
+        };
+        let row = |tiles: Vec<gpui::Div>| div().flex().gap(px(8.)).children(tiles);
+        let roles = div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(row(vec![
+                tile("Primary", c.primary, c.on_primary),
+                tile("Secondary", c.secondary, c.on_secondary),
+                tile("Tertiary", c.tertiary, c.on_tertiary),
+                tile("Error", c.error, c.on_error),
+            ]))
+            .child(row(vec![
+                tile("Primary container", c.primary_container, c.on_primary_container),
+                tile("Secondary container", c.secondary_container, c.on_secondary_container),
+                tile("Tertiary container", c.tertiary_container, c.on_tertiary_container),
+                tile("Error container", c.error_container, c.on_error_container),
+            ]))
+            .child(row(vec![
+                tile("Surface", c.surface, c.on_surface),
+                tile("Container low", c.surface_container_low, c.on_surface),
+                tile("Container", c.surface_container, c.on_surface),
+                tile("Container high", c.surface_container_high, c.on_surface),
+                tile("Container highest", c.surface_container_highest, c.on_surface),
+            ]))
+            .child(row(vec![
+                tile("On surface", c.on_surface, c.surface),
+                tile("On surface variant", c.on_surface_variant, c.surface),
+                tile("Outline", c.outline, c.surface),
+                tile("Outline variant", c.outline_variant, c.on_surface),
+                tile("Inverse surface", c.inverse_surface, c.inverse_on_surface),
+            ]));
+
+        // ----- プレビュー -----
+        let preview = div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .child(
+                wrap_row()
+                    .child(Button::new("pv-filled", "Filled").icon(IconName::Send))
+                    .child(Button::new("pv-tonal", "Tonal").tonal())
+                    .child(Button::new("pv-outlined", "Outlined").outlined())
+                    .child(Fab::new("pv-fab", IconName::Edit))
+                    .child(Fab::new("pv-fab2", IconName::Add).color(FabColor::TertiaryContainer))
+                    .child(Switch::new("pv-switch", true).icons(true))
+                    .child(Checkbox::new("pv-check", true))
+                    .child(Chip::filter("pv-chip", "選択中").selected(true))
+                    .child(Badge::new(Some(8))),
+            )
+            .child(LinearProgress::new("pv-progress", Some(0.6)).wavy(true))
+            .child(Slider::new("pv-slider", 0.4))
+            .child(
+                div()
+                    .flex()
+                    .gap(px(24.))
+                    .items_center()
+                    .child(CircularProgress::new("pv-cp", None).wavy(true))
+                    .child(LoadingIndicator::new("pv-li").contained(true))
+                    .child(
+                        div().w(px(320.)).child(
+                            NavigationBar::new("pv-nav", 0)
+                                .item(NavItem::new(IconName::Home, "ホーム"))
+                                .item(NavItem::new(IconName::Search, "検索"))
+                                .item(NavItem::new(IconName::Person, "自分")),
+                        ),
+                    ),
+            );
+
+        let current = match self.seed {
+            None => "ベースライン（#6750A4 の固定スキーム）".to_string(),
+            Some(usize::MAX) => format!(
+                "シード {}（色相 {:.0}°）",
+                hex(hue_color),
+                self.hue
+            ),
+            Some(i) => format!("シード {} {}", SEEDS[i].0, hex(gpui::rgb(SEEDS[i].1).into())),
+        };
+
+        vec![
+            section(
+                cx,
+                "Seed color",
+                "シード色 1 つから HCT 色空間でトーナルパレットを作り、全カラーロールを生成（material-color-utilities / 2025 スペック）",
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(16.))
+                    .child(swatches)
+                    .child(hue_slider)
+                    .child(caption(cx, format!("現在: {current}"))),
+            )
+            .into_any_element(),
+            section(
+                cx,
+                "Scheme variant & contrast",
+                "同じシードでも方式によって配色の性格が変わる。コントラストを上げるとテキストと背景の差が大きくなる",
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(16.))
+                    .child(variants)
+                    .child(contrast),
+            )
+            .into_any_element(),
+            section(cx, "Color roles", "生成されたカラーロール", roles).into_any_element(),
+            section(cx, "Preview", "全コンポーネントが即座に新しい配色で描画される", preview)
+                .into_any_element(),
         ]
     }
 
@@ -1409,16 +1938,12 @@ impl Render for Gallery {
             5 => self.page_feedback(cx),
             6 => self.page_text_fields(cx),
             7 => self.page_menus(cx),
-            _ => self.page_app_bars(cx),
+            8 => self.page_app_bars(cx),
+            _ => self.page_color(cx),
         };
 
         let mut rail = NavigationRail::new("rail", self.page)
             .header(IconButton::new("menu", IconName::Menu))
-            .header(
-                Fab::new("rail-fab", IconName::Edit)
-                    .color(FabColor::TertiaryContainer)
-                    .lowered(true),
-            )
             .footer(
                 div()
                     .id("theme-toggle-tt")

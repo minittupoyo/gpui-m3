@@ -125,6 +125,168 @@ impl ColorScheme {
 }
 
 // ---------------------------------------------------------------------------
+// Dynamic color
+// ---------------------------------------------------------------------------
+
+/// シードカラーからスキームを作るときの方式（material-color-utilities の Variant）
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SchemeVariant {
+    /// 既定。落ち着いたトーンでシード色相をそのまま使う
+    #[default]
+    TonalSpot,
+    /// 彩度の高い鮮やかな配色
+    Vibrant,
+    /// 色相をずらした遊びのある配色（シード色相は主役にならない）
+    Expressive,
+    /// シード色に忠実（ブランドカラー向け）
+    Fidelity,
+    /// 画像などのコンテンツ色に合わせる
+    Content,
+    /// ほぼ無彩色
+    Neutral,
+    /// 完全なグレースケール
+    Monochrome,
+    /// 色相を大きく回した虹色
+    Rainbow,
+    /// 色相を回したフルーツサラダ
+    FruitSalad,
+}
+
+impl SchemeVariant {
+    pub const ALL: [SchemeVariant; 9] = [
+        Self::TonalSpot,
+        Self::Vibrant,
+        Self::Expressive,
+        Self::Fidelity,
+        Self::Content,
+        Self::Neutral,
+        Self::Monochrome,
+        Self::Rainbow,
+        Self::FruitSalad,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::TonalSpot => "Tonal spot",
+            Self::Vibrant => "Vibrant",
+            Self::Expressive => "Expressive",
+            Self::Fidelity => "Fidelity",
+            Self::Content => "Content",
+            Self::Neutral => "Neutral",
+            Self::Monochrome => "Monochrome",
+            Self::Rainbow => "Rainbow",
+            Self::FruitSalad => "Fruit salad",
+        }
+    }
+
+    fn to_mcu(self) -> material_colors::dynamic_color::Variant {
+        use material_colors::dynamic_color::Variant as V;
+        match self {
+            Self::TonalSpot => V::TonalSpot,
+            Self::Vibrant => V::Vibrant,
+            Self::Expressive => V::Expressive,
+            Self::Fidelity => V::Fidelity,
+            Self::Content => V::Content,
+            Self::Neutral => V::Neutral,
+            Self::Monochrome => V::Monochrome,
+            Self::Rainbow => V::Rainbow,
+            Self::FruitSalad => V::FruitSalad,
+        }
+    }
+}
+
+/// Dynamic color の設定
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DynamicColorConfig {
+    /// シードカラー（0xRRGGBB）
+    pub seed: u32,
+    pub variant: SchemeVariant,
+    /// コントラスト（-1.0〜1.0。0 = 標準、0.5 = 中、1.0 = 高）
+    pub contrast: f64,
+}
+
+impl DynamicColorConfig {
+    pub fn new(seed: u32) -> Self {
+        Self {
+            seed,
+            variant: SchemeVariant::TonalSpot,
+            contrast: 0.,
+        }
+    }
+    pub fn variant(mut self, v: SchemeVariant) -> Self {
+        self.variant = v;
+        self
+    }
+    pub fn contrast(mut self, c: f64) -> Self {
+        self.contrast = c;
+        self
+    }
+}
+
+/// 色相 (0〜360) から鮮やかなシードカラーを作る（HCT: chroma 48, tone 50）
+pub fn seed_from_hue(hue: f32) -> u32 {
+    use material_colors::{color::Rgb, hct::Hct};
+    let rgb: Rgb = Hct::from(hue as f64, 48., 50.).into();
+    ((rgb.red as u32) << 16) | ((rgb.green as u32) << 8) | rgb.blue as u32
+}
+
+impl ColorScheme {
+    /// シードカラーから M3 のカラーロールを生成する（Dynamic color）。
+    /// M3 Expressive に合わせて 2025 年版のカラースペックを使う。
+    pub fn from_seed(config: DynamicColorConfig, dark: bool) -> Self {
+        use material_colors::{
+            color::Rgb,
+            dynamic_color::{DynamicScheme, Platform, SpecVersion},
+            hct::Hct,
+        };
+        let s = DynamicScheme::from_spec(
+            Hct::new(Rgb::from_u32(config.seed)),
+            config.variant.to_mcu(),
+            dark,
+            Some(config.contrast),
+            Platform::Phone,
+            SpecVersion::Spec2025,
+        );
+        let h = |rgb: Rgb| -> Hsla {
+            c(((rgb.red as u32) << 16) | ((rgb.green as u32) << 8) | rgb.blue as u32)
+        };
+        Self {
+            primary: h(s.primary()),
+            on_primary: h(s.on_primary()),
+            primary_container: h(s.primary_container()),
+            on_primary_container: h(s.on_primary_container()),
+            secondary: h(s.secondary()),
+            on_secondary: h(s.on_secondary()),
+            secondary_container: h(s.secondary_container()),
+            on_secondary_container: h(s.on_secondary_container()),
+            tertiary: h(s.tertiary()),
+            on_tertiary: h(s.on_tertiary()),
+            tertiary_container: h(s.tertiary_container()),
+            on_tertiary_container: h(s.on_tertiary_container()),
+            error: h(s.error()),
+            on_error: h(s.on_error()),
+            error_container: h(s.error_container()),
+            on_error_container: h(s.on_error_container()),
+            surface: h(s.surface()),
+            on_surface: h(s.on_surface()),
+            on_surface_variant: h(s.on_surface_variant()),
+            surface_container_lowest: h(s.surface_container_lowest()),
+            surface_container_low: h(s.surface_container_low()),
+            surface_container: h(s.surface_container()),
+            surface_container_high: h(s.surface_container_high()),
+            surface_container_highest: h(s.surface_container_highest()),
+            outline: h(s.outline()),
+            outline_variant: h(s.outline_variant()),
+            inverse_surface: h(s.inverse_surface()),
+            inverse_on_surface: h(s.inverse_on_surface()),
+            inverse_primary: h(s.inverse_primary()),
+            scrim: c(0x000000),
+            shadow: c(0x000000),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // State layers
 // ---------------------------------------------------------------------------
 
@@ -378,18 +540,29 @@ pub struct Theme {
     pub colors: ColorScheme,
     pub motion: Motion,
     pub font_family: &'static str,
+    /// None ならベースライン（#6750A4）の固定スキーム
+    pub dynamic: Option<DynamicColorConfig>,
 }
 
 impl Theme {
     pub fn new(brightness: Brightness) -> Self {
+        Self::with_dynamic(brightness, None)
+    }
+
+    /// Dynamic color（シードカラー）を指定してテーマを作る
+    pub fn with_dynamic(brightness: Brightness, dynamic: Option<DynamicColorConfig>) -> Self {
+        let dark = brightness == Brightness::Dark;
+        let colors = match dynamic {
+            Some(cfg) => ColorScheme::from_seed(cfg, dark),
+            None if dark => ColorScheme::dark(),
+            None => ColorScheme::light(),
+        };
         Self {
             brightness,
-            colors: match brightness {
-                Brightness::Light => ColorScheme::light(),
-                Brightness::Dark => ColorScheme::dark(),
-            },
+            colors,
             motion: Motion::new(MotionScheme::Expressive),
             font_family: "Segoe UI",
+            dynamic,
         }
     }
 

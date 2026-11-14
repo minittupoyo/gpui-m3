@@ -24,9 +24,11 @@ mod progress;
 mod selection;
 mod sheet;
 mod slider;
+mod split_button;
 mod tabs;
 mod text_field;
 mod theme;
+mod toolbar;
 
 pub use app_bar::*;
 pub use button::*;
@@ -45,9 +47,11 @@ pub use progress::*;
 pub use selection::*;
 pub use sheet::*;
 pub use slider::*;
+pub use split_button::*;
 pub use tabs::*;
 pub use text_field::*;
 pub use theme::*;
+pub use toolbar::*;
 
 use std::rc::Rc;
 
@@ -63,9 +67,21 @@ pub fn init(cx: &mut App, brightness: Brightness) {
 
 /// テーマを切り替える（全ウィンドウを再描画）
 pub fn set_brightness(cx: &mut App, brightness: Brightness) {
-    let motion = cx.m3().motion;
-    let mut theme = Theme::new(brightness);
-    theme.motion = motion;
+    let dynamic = cx.m3().dynamic;
+    rebuild_theme(cx, brightness, dynamic);
+}
+
+/// Dynamic color を設定する（None でベースラインの固定スキームに戻す）
+pub fn set_dynamic_color(cx: &mut App, config: Option<DynamicColorConfig>) {
+    let brightness = cx.m3().brightness;
+    rebuild_theme(cx, brightness, config);
+}
+
+fn rebuild_theme(cx: &mut App, brightness: Brightness, dynamic: Option<DynamicColorConfig>) {
+    let old = cx.m3().clone();
+    let mut theme = Theme::with_dynamic(brightness, dynamic);
+    theme.motion = old.motion;
+    theme.font_family = old.font_family;
     cx.set_global(theme);
     cx.refresh_windows();
 }
