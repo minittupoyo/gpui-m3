@@ -588,7 +588,7 @@ impl Theme {
             brightness,
             colors,
             motion: Motion::new(MotionScheme::Expressive),
-            font_family: "Segoe UI",
+            font_family: super::ROBOTO_FLEX_FAMILY,
             dynamic,
         }
     }

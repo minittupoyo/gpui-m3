@@ -17,6 +17,7 @@ mod drawer;
 mod fab;
 mod fab_menu;
 mod feedback;
+mod fonts;
 mod icon_button;
 mod icons;
 mod loading;
@@ -47,6 +48,7 @@ pub use drawer::*;
 pub use fab::*;
 pub use fab_menu::*;
 pub use feedback::*;
+pub use fonts::ROBOTO_FLEX_FAMILY;
 pub use icon_button::*;
 pub use icons::*;
 pub use loading::*;
@@ -80,6 +82,7 @@ actions!(m3_focus, [FocusNext, FocusPrev]);
 
 /// テーマを登録し、キー操作（Tab / Shift+Tab でフォーカス移動）を有効にする
 pub fn init(cx: &mut App, brightness: Brightness) {
+    fonts::register_fonts(cx);
     cx.set_global(Theme::new(brightness));
     bind_text_field_keys(cx);
     cx.bind_keys([
