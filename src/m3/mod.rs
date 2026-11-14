@@ -71,7 +71,8 @@ pub use toolbar::*;
 use std::rc::Rc;
 
 use gpui::{
-    App, ClickEvent, Div, Entity, InteractiveElement, MouseButton, SharedString, Stateful, Window,
+    App, ClickEvent, Div, Entity, InteractiveElement, MouseButton, SharedString, Stateful,
+    StatefulInteractiveElement, Window,
     actions,
 };
 
@@ -201,4 +202,75 @@ pub(crate) fn track_press(el: Stateful<Div>, state: &Entity<bool>) -> Stateful<D
         .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
             set_pressed(&out, false, cx)
         })
+}
+
+// ---------------------------------------------------------------------------
+// ホバーで影の高さをなめらかに変える
+// ---------------------------------------------------------------------------
+
+struct ElevAnim {
+    value: f32,
+    last: Option<std::time::Instant>,
+}
+
+/// ホバー状態（`track_hover` で更新）
+pub(crate) fn use_hover(id: &SharedString, window: &mut Window, cx: &mut App) -> Entity<bool> {
+    window.use_keyed_state(SharedString::from(format!("{id}::hover")), cx, |_, _| false)
+}
+
+/// ホバー検知を付ける
+pub(crate) fn track_hover(el: Stateful<Div>, state: &Entity<bool>) -> Stateful<Div> {
+    let state = state.clone();
+    el.on_hover(move |hovered, _, cx| {
+        state.update(cx, |s, cx| {
+            if *s != *hovered {
+                *s = *hovered;
+                cx.notify();
+            }
+        })
+    })
+}
+
+/// 現在のエレベーションレベルを返す。ホバー中は `hover`、それ以外は `base` へ指数的に近づく。
+/// アニメーション中は次のフレームを要求する。
+pub(crate) fn animate_elevation(
+    id: &SharedString,
+    hovered: bool,
+    base: f32,
+    hover: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> f32 {
+    let anim = window.use_keyed_state(
+        SharedString::from(format!("{id}::elev")),
+        cx,
+        move |_, _| ElevAnim { value: base, last: None },
+    );
+    let target = if hovered { hover } else { base };
+    let reduce = cx.reduce_motion();
+    let mut level = target;
+    let mut animating = false;
+    anim.update(cx, |a, _| {
+        if reduce {
+            a.value = target;
+            a.last = None;
+        } else {
+            let now = std::time::Instant::now();
+            let dt = a.last.map(|t| (now - t).as_secs_f32()).unwrap_or(0.).min(0.05);
+            a.last = Some(now);
+            // 時定数 70ms
+            a.value += (target - a.value) * (1. - (-dt / 0.07).exp());
+            if (target - a.value).abs() < 0.01 {
+                a.value = target;
+                a.last = None;
+            } else {
+                animating = true;
+            }
+        }
+        level = a.value;
+    });
+    if animating {
+        window.request_animation_frame();
+    }
+    level
 }

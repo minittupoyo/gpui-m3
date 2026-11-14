@@ -9,6 +9,7 @@ use gpui::{
 };
 
 use super::{
+    animate_elevation, elevation_f, track_hover, use_hover,
     ActiveTheme, ButtonShape, ClickHandler, ComponentSize, Icon, IconName, StyledExt, Theme,
     TypeScale, ripple_overlay, state, state_layer, track_press, track_ripple, transparent,
     use_pressed, use_ripple,
@@ -303,6 +304,17 @@ impl RenderOnce for Button {
         } = colors;
         let shadow_color = theme.colors.shadow;
 
+        let hover_state = use_hover(&self.id, window, cx);
+        let hover_elev = if elevation > 0 && !self.disabled { elevation as f32 + 1. } else { elevation as f32 };
+        let level = animate_elevation(
+            &self.id,
+            *hover_state.read(cx),
+            elevation as f32,
+            hover_elev,
+            window,
+            cx,
+        );
+
         let mut el = div()
             .id(ElementId::Name(self.id.clone()))
             .flex()
@@ -315,7 +327,8 @@ impl RenderOnce for Button {
             .bg(container)
             .text_color(content)
             .m3_type(m.type_scale)
-            .m3_elevation(elevation, shadow_color);
+            .shadow(elevation_f(level, shadow_color));
+        el = track_hover(el, &hover_state);
 
         if let Some(b) = border {
             el = match m.outline {
@@ -327,18 +340,9 @@ impl RenderOnce for Button {
         }
 
         if !self.disabled {
-            let hover_elev = if elevation > 0 { elevation + 1 } else { 0 };
             el = el
                 .cursor_pointer()
-                .hover(move |s| {
-                    let s = s.bg(state_layer(container, content, state::HOVER));
-                    if hover_elev > 0 {
-                        s.m3_elevation(hover_elev, shadow_color)
-                    } else {
-                        s
-                    }
-                })
-                ;
+                .hover(move |s| s.bg(state_layer(container, content, state::HOVER)));
             // 波紋は最初の子（後続のアイコン・ラベルが上に描かれる）
             let ripple = use_ripple(&self.id, window, cx);
             el = el.child(ripple_overlay(&ripple, content, gpui::Corners::all(radius)));

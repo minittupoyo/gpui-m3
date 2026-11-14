@@ -9,6 +9,7 @@ use gpui::{
 };
 
 use super::{
+    animate_elevation, elevation_f, track_hover, use_hover,
     ActiveTheme, ClickHandler, Icon, IconName, StyledExt, Theme, TypeScale, state, state_layer,
     ripple_overlay, track_press, track_ripple, use_pressed, use_ripple,
 };
@@ -127,6 +128,15 @@ impl RenderOnce for Fab {
         let shadow = theme.colors.shadow;
         let (elev, hover_elev) = if self.lowered { (1, 2) } else { (3, 4) };
 
+        let hover_state = use_hover(&self.id, window, cx);
+        let level = animate_elevation(
+            &self.id,
+            *hover_state.read(cx),
+            elev as f32,
+            hover_elev as f32,
+            window,
+            cx,
+        );
         let pressed_state = use_pressed(&self.id, window, cx);
         let pressed = *pressed_state.read(cx);
         // Expressive: 押下でわずかに角を詰める
@@ -143,13 +153,10 @@ impl RenderOnce for Fab {
             .bg(bg)
             .text_color(fg)
             .m3_type(scale)
-            .m3_elevation(elev, shadow)
+            .shadow(elevation_f(level, shadow))
             .cursor_pointer()
-            .hover(move |s| {
-                s.bg(state_layer(bg, fg, state::HOVER))
-                    .m3_elevation(hover_elev, shadow)
-            })
-            ;
+            .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)));
+        el = track_hover(el, &hover_state);
         let ripple = use_ripple(&self.id, window, cx);
         el = el.child(ripple_overlay(&ripple, fg, gpui::Corners::all(r)));
         el = el.child(Icon::new(self.icon).size(icon).color(fg));

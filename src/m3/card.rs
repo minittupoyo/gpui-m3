@@ -9,7 +9,8 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ClickHandler, StyledExt, ripple_overlay, shape, state, state_layer, track_ripple,
+    animate_elevation, elevation_f, track_hover, use_hover,
+    ActiveTheme, ClickHandler, ripple_overlay, shape, state, state_layer, track_ripple,
     use_ripple,
 };
 
@@ -166,6 +167,16 @@ impl RenderOnce for Card {
         let fg = c.on_surface;
         let shadow = c.shadow;
 
+        let hover_state = use_hover(&self.id, window, cx);
+        let hover_elev = if self.on_click.is_none() {
+            elev as f32
+        } else if self.variant == CardVariant::Elevated {
+            2.
+        } else {
+            1.
+        };
+        let level = animate_elevation(&self.id, *hover_state.read(cx), elev as f32, hover_elev, window, cx);
+
         let mut el = div()
             .id(ElementId::Name(self.id.clone()))
             .flex()
@@ -174,18 +185,15 @@ impl RenderOnce for Card {
             .overflow_hidden()
             .bg(bg)
             .text_color(fg)
-            .m3_elevation(elev, shadow);
+            .shadow(elevation_f(level, shadow));
+        el = track_hover(el, &hover_state);
         if let Some(b) = border {
             el = el.border_1().border_color(b);
         }
         if let Some(h) = self.on_click {
-            let hover_elev = if self.variant == CardVariant::Elevated { 2 } else { 1 };
             el = el
                 .cursor_pointer()
-                .hover(move |s| {
-                    s.bg(state_layer(bg, fg, state::HOVER))
-                        .m3_elevation(hover_elev, shadow)
-                })
+                .hover(move |s| s.bg(state_layer(bg, fg, state::HOVER)))
                 .on_click(move |e, w, cx| h(e, w, cx));
         }
         if let Some(r) = ripple.as_ref() {
