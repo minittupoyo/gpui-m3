@@ -103,6 +103,11 @@ struct Gallery {
     full_open: bool,
     search_field: Entity<TextField>,
     search_open: bool,
+    date: m3::Date,
+    date_view: (i32, u32),
+    time: (u32, u32),
+    time_mode: m3::TimeMode,
+    time_24h: bool,
 }
 
 impl Gallery {
@@ -249,6 +254,11 @@ impl Gallery {
             full_open: false,
             search_field: m3::search_field(window, cx, "アルバムやアーティストを検索"),
             search_open: false,
+            date: m3::Date::new(2026, 11, 14),
+            date_view: (2026, 11),
+            time: (9, 41),
+            time_mode: m3::TimeMode::Hour,
+            time_24h: false,
             page: std::env::var("M3_PAGE").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
             toggles: [false, true, false, true, false],
             favorite: [true, false, true, false],
@@ -2130,6 +2140,60 @@ impl Gallery {
                 .into_any_element()
         };
         let open_btn = Self::set_click(cx, |g| g.search_open = true);
+        let today = m3::Date::new(2026, 11, 14);
+        let pickers = div()
+            .flex()
+            .flex_wrap()
+            .items_start()
+            .gap(px(24.))
+            .child(
+                m3::DatePicker::new("dp", self.date)
+                    .year_month(self.date_view.0, self.date_view.1)
+                    .today(today)
+                    .modal(true)
+                    .on_select(Self::set(cx, |g, d: m3::Date| g.date = d))
+                    .on_month_change(Self::set(cx, |g, ym: (i32, u32)| g.date_view = ym)),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(12.))
+                    .child(
+                        m3::TimePicker::new("tp", self.time.0, self.time.1)
+                            .mode(self.time_mode)
+                            .is_24h(self.time_24h)
+                            .on_change(Self::set(cx, |g, (h, m, done): (u32, u32, bool)| {
+                                g.time = (h, m);
+                                if done && g.time_mode == m3::TimeMode::Hour {
+                                    g.time_mode = m3::TimeMode::Minute;
+                                }
+                            }))
+                            .on_mode(Self::set(cx, |g, m: m3::TimeMode| g.time_mode = m)),
+                    )
+                    .child(
+                        Switch::new("tp-24h", self.time_24h)
+                            .on_change(Self::set(cx, |g, v: bool| g.time_24h = v)),
+                    )
+                    .child(caption(
+                        cx,
+                        format!(
+                            "選択: {} {:02}:{:02}（右上のスイッチで 24 時間表示）",
+                            self.date.format_long(),
+                            self.time.0,
+                            self.time.1
+                        ),
+                    )),
+            );
+        out.push(
+            section(
+                cx,
+                "Date picker / Time picker",
+                "日付はモーダル形式（月送り・今日の枠・選択）。時刻はダイヤルをクリック／ドラッグ、時を選ぶと分に切替",
+                pickers,
+            )
+            .into_any_element(),
+        );
         out.push(
             section(
                 cx,

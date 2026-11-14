@@ -21,6 +21,7 @@ mod loading;
 mod menu;
 mod navigation;
 mod overlays;
+mod picker;
 mod progress;
 mod ripple;
 mod search;
@@ -48,6 +49,7 @@ pub use loading::*;
 pub use menu::*;
 pub use navigation::*;
 pub use overlays::*;
+pub use picker::*;
 pub use progress::*;
 #[allow(unused_imports)]
 pub(crate) use ripple::*;
