@@ -1,7 +1,7 @@
 //! Button groups（Expressive）
 //!
-//! - [`ConnectedButtonGroup`]: 隣接したボタンが内側の角を共有し、選択されると丸くなる（旧 Segmented button の後継）
-//! - [`StandardButtonGroup`]: 押したボタンが横に膨らみ、隣が縮むインタラクション
+//! - [`ConnectedButtonGroup`] — 隣接したボタンが内側の角を共有し、選択されると丸くなる（旧 Segmented button の後継）
+//! - [`StandardButtonGroup`] — 押したボタンが横に膨らみ、隣が縮むインタラクション
 
 use gpui::AnimationExt as _;
 use gpui::{

@@ -163,11 +163,11 @@ impl RenderOnce for Tabs {
                     canvas(
                         move |b, _, cx| {
                             content_l.update(cx, |s, cx| {
-                                if s.contents.get(i) != Some(&b) {
-                                    if let Some(slot) = s.contents.get_mut(i) {
-                                        *slot = b;
-                                        cx.notify();
-                                    }
+                                if s.contents.get(i) != Some(&b)
+                                    && let Some(slot) = s.contents.get_mut(i)
+                                {
+                                    *slot = b;
+                                    cx.notify();
                                 }
                             })
                         },
@@ -195,10 +195,10 @@ impl RenderOnce for Tabs {
                 content = content.child(icon_box);
             }
             content = content.child(tab.label);
-            if tab.icon.is_none() {
-                if let Some(b) = tab.badge {
-                    content = content.child(Badge::new(b));
-                }
+            if tab.icon.is_none()
+                && let Some(b) = tab.badge
+            {
+                content = content.child(Badge::new(b));
             }
 
             let tab_id: SharedString = format!("{}-{i}", self.id).into();
@@ -224,11 +224,11 @@ impl RenderOnce for Tabs {
                     canvas(
                         move |b, _, cx| {
                             tab_l.update(cx, |s, cx| {
-                                if s.tabs.get(i) != Some(&b) {
-                                    if let Some(slot) = s.tabs.get_mut(i) {
-                                        *slot = b;
-                                        cx.notify();
-                                    }
+                                if s.tabs.get(i) != Some(&b)
+                                    && let Some(slot) = s.tabs.get_mut(i)
+                                {
+                                    *slot = b;
+                                    cx.notify();
                                 }
                             })
                         },

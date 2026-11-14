@@ -149,13 +149,15 @@ impl RenderOnce for Chip {
             el = track_ripple(el, &ripple);
         }
         if let Some(icon) = leading {
-            el = el.child(Icon::new(icon).size(px(18.)).color(if self.disabled {
-                fg
-            } else if selected {
-                fg
-            } else {
-                icon_color
-            }));
+            el = el.child(
+                Icon::new(icon)
+                    .size(px(18.))
+                    .color(if self.disabled || selected {
+                        fg
+                    } else {
+                        icon_color
+                    }),
+            );
         }
         el = el.child(self.label);
         if has_trailing {

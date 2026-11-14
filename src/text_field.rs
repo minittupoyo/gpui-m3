@@ -23,6 +23,8 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::{ActiveTheme, Icon, IconName, StyledExt, TypeScale, shape, state, transparent};
 
+type NotchBackground = std::rc::Rc<dyn Fn(&super::ColorScheme) -> Hsla>;
+
 actions!(
     m3_text_field,
     [
@@ -164,7 +166,7 @@ pub struct TextField {
     multiline: Option<(usize, Option<usize>)>,
     bare: bool,
     disabled: bool,
-    notch_background: Option<std::rc::Rc<dyn Fn(&super::ColorScheme) -> Hsla>>,
+    notch_background: Option<NotchBackground>,
 }
 
 impl TextField {
@@ -761,7 +763,7 @@ impl TextField {
         }
     }
 
-    fn from_display(&self, offset: usize) -> usize {
+    fn display_to_offset(&self, offset: usize) -> usize {
         if self.is_obscured() {
             let n = offset / BULLET.len_utf8();
             self.content
@@ -806,7 +808,7 @@ impl TextField {
         if position.x < bounds.left() && self.scroll_x <= px(0.) {
             return 0;
         }
-        self.from_display(line.closest_index_for_x(position.x - bounds.left() + self.scroll_x))
+        self.display_to_offset(line.closest_index_for_x(position.x - bounds.left() + self.scroll_x))
     }
 
     fn offset_from_utf16(&self, offset: usize) -> usize {
@@ -1131,7 +1133,8 @@ impl EntityInputHandler for TextField {
         }
         let line_point = self.last_bounds?.localize(&point)?;
         let last_layout = self.last_layout.as_ref()?;
-        let idx = self.from_display(last_layout.closest_index_for_x(line_point.x + self.scroll_x));
+        let idx =
+            self.display_to_offset(last_layout.closest_index_for_x(line_point.x + self.scroll_x));
         Some(self.offset_to_utf16(idx))
     }
 }
@@ -1353,10 +1356,11 @@ impl Element for TextLine {
                 cx,
             )
             .ok();
-            if focused && cursor_visible {
-                if let Some(cursor) = cursor {
-                    window.paint_quad(cursor);
-                }
+            if focused
+                && cursor_visible
+                && let Some(cursor) = cursor
+            {
+                window.paint_quad(cursor);
             }
         });
 
@@ -1639,10 +1643,11 @@ impl Element for TextArea {
                 )
                 .ok();
             }
-            if focused && cursor_visible {
-                if let Some(c) = cursor {
-                    window.paint_quad(c);
-                }
+            if focused
+                && cursor_visible
+                && let Some(c) = cursor
+            {
+                window.paint_quad(c);
             }
         });
 

@@ -1,10 +1,10 @@
 //! Menus（M3 Expressive の縦型メニュー）
 //!
-//! - [`Menu`]: メニュー本体（Standard / Vibrant）
-//! - [`DropdownMenu`]: トリガーをクリックすると開く
-//! - [`ContextMenuArea`]: 右クリックした位置に開く
-//! - [`Select`]: Exposed dropdown（選択式フィールド）
-//! - [`MenuItem::submenu`]: サブメニュー（ホバー・クリック・→キーで右に開く）
+//! - [`Menu`] — メニュー本体（Standard / Vibrant）
+//! - [`DropdownMenu`] — トリガーをクリックすると開く
+//! - [`ContextMenuArea`] — 右クリックした位置に開く
+//! - [`Select`] — Exposed dropdown（選択式フィールド）
+//! - [`MenuItem::submenu`] — サブメニュー（ホバー・クリック・→キーで右に開く）
 
 use std::{
     rc::Rc,
@@ -22,6 +22,8 @@ use super::{
     ActiveTheme, ChangeHandler, ClickHandler, Icon, IconName, StyledExt, TypeScale, ripple_overlay,
     shape, state, state_layer, track_ripple, transparent, use_popup_focus, use_ripple,
 };
+
+type NotchBackground = std::rc::Rc<dyn Fn(&super::ColorScheme) -> Hsla>;
 
 type DismissHandler = Rc<dyn Fn(&mut Window, &mut App)>;
 
@@ -395,58 +397,56 @@ impl RenderOnce for Menu {
                             }
                         });
                     }
-                    if let Some(sub) = submenu {
-                        if has_sub && subs.read(cx).open == Some(i) {
-                            let back_subs = subs.clone();
-                            let back_root = root_subs.clone();
-                            let measure = root_subs.clone();
-                            let mut menu = (*sub).nested_in(dismiss_all.clone());
-                            menu.depth = depth + 1;
-                            menu.root_subs = Some(root_subs.clone());
-                            menu.on_back = Some(Rc::new(move |w, cx| {
-                                back_subs.update(cx, |s, cx| {
-                                    s.open = None;
-                                    cx.notify();
-                                });
-                                back_root.update(cx, |r, _| r.rects.truncate(depth));
-                                if let Some(f) = row_focus.as_ref() {
-                                    w.focus(f, cx);
-                                }
-                            }));
-                            row = row.child(
-                                div().absolute().top(px(-4.)).left(relative(1.)).child(
-                                    deferred(
-                                        anchored()
-                                            .anchor(Anchor::TopLeft)
-                                            .snap_to_window_with_margin(px(8.))
-                                            .child(
-                                                div()
-                                                    .relative()
-                                                    .child(
-                                                        canvas(
-                                                            move |b, _, cx| {
-                                                                measure.update(cx, |s, _| {
-                                                                    if s.rects.len() <= depth {
-                                                                        s.rects.resize(
-                                                                            depth + 1,
-                                                                            None,
-                                                                        );
-                                                                    }
-                                                                    s.rects[depth] = Some(b);
-                                                                })
-                                                            },
-                                                            |_, _, _, _| {},
-                                                        )
-                                                        .absolute()
-                                                        .size_full(),
+                    if let Some(sub) = submenu
+                        && has_sub
+                        && subs.read(cx).open == Some(i)
+                    {
+                        let back_subs = subs.clone();
+                        let back_root = root_subs.clone();
+                        let measure = root_subs.clone();
+                        let mut menu = (*sub).nested_in(dismiss_all.clone());
+                        menu.depth = depth + 1;
+                        menu.root_subs = Some(root_subs.clone());
+                        menu.on_back = Some(Rc::new(move |w, cx| {
+                            back_subs.update(cx, |s, cx| {
+                                s.open = None;
+                                cx.notify();
+                            });
+                            back_root.update(cx, |r, _| r.rects.truncate(depth));
+                            if let Some(f) = row_focus.as_ref() {
+                                w.focus(f, cx);
+                            }
+                        }));
+                        row = row.child(
+                            div().absolute().top(px(-4.)).left(relative(1.)).child(
+                                deferred(
+                                    anchored()
+                                        .anchor(Anchor::TopLeft)
+                                        .snap_to_window_with_margin(px(8.))
+                                        .child(
+                                            div()
+                                                .relative()
+                                                .child(
+                                                    canvas(
+                                                        move |b, _, cx| {
+                                                            measure.update(cx, |s, _| {
+                                                                if s.rects.len() <= depth {
+                                                                    s.rects.resize(depth + 1, None);
+                                                                }
+                                                                s.rects[depth] = Some(b);
+                                                            })
+                                                        },
+                                                        |_, _, _, _| {},
                                                     )
-                                                    .child(menu),
-                                            ),
-                                    )
-                                    .priority(2),
-                                ),
-                            );
-                        }
+                                                    .absolute()
+                                                    .size_full(),
+                                                )
+                                                .child(menu),
+                                        ),
+                                )
+                                .priority(2),
+                            ),
+                        );
                     }
                     list = list.child(row);
                 }
@@ -747,7 +747,7 @@ pub struct Select {
     selected: Option<usize>,
     outlined: bool,
     leading_icon: Option<IconName>,
-    notch_background: Option<Rc<dyn Fn(&super::ColorScheme) -> Hsla>>,
+    notch_background: Option<NotchBackground>,
     on_change: Option<ChangeHandler<usize>>,
 }
 

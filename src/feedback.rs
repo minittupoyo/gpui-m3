@@ -7,7 +7,7 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ClickHandler, Icon, IconName, StyledExt, TypeScale, dismiss_on_escape,
+    ActiveTheme, ClickHandler, DismissFn, Icon, IconName, StyledExt, TypeScale, dismiss_on_escape,
     ripple_overlay, shape, state, state_layer, track_ripple, use_popup_focus, use_ripple,
 };
 
@@ -217,7 +217,7 @@ pub struct Dialog {
     headline: SharedString,
     body: SharedString,
     actions: Vec<AnyElement>,
-    on_dismiss: Option<std::rc::Rc<dyn Fn(&mut Window, &mut App)>>,
+    on_dismiss: Option<DismissFn>,
 }
 
 impl Dialog {
@@ -308,7 +308,7 @@ pub struct DialogOverlay {
     id: SharedString,
     open: bool,
     dialog: Dialog,
-    on_dismiss: Option<std::rc::Rc<dyn Fn(&mut Window, &mut App)>>,
+    on_dismiss: Option<DismissFn>,
 }
 
 impl DialogOverlay {

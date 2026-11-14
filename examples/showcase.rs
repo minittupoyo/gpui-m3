@@ -662,11 +662,7 @@ impl Showcase {
 impl Render for Showcase {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Mica 有効時は背景を半透明にして、デスクトップの色を透かす
-        let bg = if self.mica {
-            rgba(0x0f111766)
-        } else {
-            rgb(BG).into()
-        };
+        let bg = if self.mica { rgba(0x0f111766) } else { rgb(BG) };
 
         let sections: Vec<AnyElement> = vec![
             self.gradients().into_any_element(),

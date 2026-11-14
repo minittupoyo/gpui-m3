@@ -9,8 +9,8 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ChangeHandler, Icon, IconName, StyledExt, TypeScale, ripple_overlay, state,
-    track_press, track_ripple, transparent, use_pressed, use_ripple,
+    ActiveTheme, ChangeHandler, DismissFn, Icon, IconName, StyledExt, TypeScale, ripple_overlay,
+    state, track_press, track_ripple, transparent, use_pressed, use_ripple,
 };
 
 fn eid(s: String) -> ElementId {
@@ -350,7 +350,7 @@ pub struct Radio {
     selected: bool,
     disabled: bool,
     label: Option<SharedString>,
-    on_select: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
+    on_select: Option<DismissFn>,
 }
 
 impl Radio {

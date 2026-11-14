@@ -15,8 +15,8 @@ use gpui::{
 };
 
 use super::{
-    ActiveTheme, ClickHandler, Divider, Icon, IconButton, IconName, StyledExt, TextField,
-    TypeScale, shape,
+    ActiveTheme, ChangeHandler, ClickHandler, Divider, Icon, IconButton, IconName, StyledExt,
+    TextField, TypeScale, shape,
 };
 
 /// Search bar / view 用の枠なし入力欄を作る
@@ -244,7 +244,7 @@ pub struct SearchAnchor {
     bar_trailing: Vec<AnyElement>,
     view_trailing: Vec<AnyElement>,
     children: Vec<AnyElement>,
-    on_open_change: Option<std::rc::Rc<dyn Fn(bool, &mut Window, &mut App)>>,
+    on_open_change: Option<ChangeHandler<bool>>,
 }
 
 impl SearchAnchor {
@@ -316,10 +316,12 @@ impl RenderOnce for SearchAnchor {
             s.was_open = open;
         });
         // 入力欄にフォーカスが入ったら開く
-        if focused && !was_focused && !open {
-            if let Some(h) = self.on_open_change.clone() {
-                window.defer(cx, move |w, cx| h(true, w, cx));
-            }
+        if focused
+            && !was_focused
+            && !open
+            && let Some(h) = self.on_open_change.clone()
+        {
+            window.defer(cx, move |w, cx| h(true, w, cx));
         }
         // 外から開かれたときも入力欄にフォーカスを移す
         if open && !was_open && !focused {

@@ -178,10 +178,8 @@ impl RenderOnce for NavigationDrawer {
                             if let Some(h) = &on_select {
                                 h(i, w, cx);
                             }
-                            if modal {
-                                if let Some(d) = &close {
-                                    d(w, cx);
-                                }
+                            if modal && let Some(d) = &close {
+                                d(w, cx);
                             }
                         });
                     if let Some(count) = item.badge {

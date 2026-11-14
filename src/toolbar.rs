@@ -258,11 +258,7 @@ impl FloatingToolbar {
         self
     }
     /// 横に FAB を並べる
-    pub fn fab(
-        mut self,
-        icon: IconName,
-        on_click: Option<Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>>,
-    ) -> Self {
+    pub fn fab(mut self, icon: IconName, on_click: Option<ClickHandler>) -> Self {
         self.fab = Some((icon, on_click));
         self
     }

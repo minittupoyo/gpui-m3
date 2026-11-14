@@ -153,7 +153,7 @@ impl RenderOnce for Carousel {
         } else {
             base.len()
         };
-        let max_pos = n.saturating_sub(visible).max(0) as f32;
+        let max_pos = n.saturating_sub(visible) as f32;
         let pos_goal = if dragging { live } else { target }.clamp(-0.4, max_pos + 0.4);
 
         let motion = theme.motion;

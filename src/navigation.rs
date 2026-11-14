@@ -498,18 +498,16 @@ impl RenderOnce for NavigationRail {
         // モーダルでは項目を選んだら閉じる。メニューボタンも閉じる動作にする
         let mut on_select = self.on_select.clone();
         let mut on_toggle = self.on_toggle.clone();
-        if modal {
-            if let Some(dismiss) = self.on_dismiss.clone() {
-                let inner = on_select.take();
-                let d = dismiss.clone();
-                on_select = Some(Rc::new(move |i, w, cx| {
-                    if let Some(s) = inner.as_ref() {
-                        s(i, w, cx);
-                    }
-                    d(w, cx);
-                }));
-                on_toggle = on_toggle.or(Some(dismiss));
-            }
+        if modal && let Some(dismiss) = self.on_dismiss.clone() {
+            let inner = on_select.take();
+            let d = dismiss.clone();
+            on_select = Some(Rc::new(move |i, w, cx| {
+                if let Some(s) = inner.as_ref() {
+                    s(i, w, cx);
+                }
+                d(w, cx);
+            }));
+            on_toggle = on_toggle.or(Some(dismiss));
         }
 
         let parts = RailParts {

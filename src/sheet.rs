@@ -13,7 +13,7 @@ use gpui::{
     Styled, Window, canvas, div, prelude::*, px,
 };
 
-use super::{ActiveTheme, StyledExt, dismiss_on_escape, shape, use_popup_focus};
+use super::{ActiveTheme, DismissFn, StyledExt, dismiss_on_escape, shape, use_popup_focus};
 
 #[derive(Default)]
 struct SheetState {
@@ -34,7 +34,7 @@ pub struct BottomSheet {
     max_width: f32,
     peek: Option<f32>,
     modal: bool,
-    on_dismiss: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
+    on_dismiss: Option<DismissFn>,
 }
 
 impl BottomSheet {
@@ -201,10 +201,8 @@ impl RenderOnce for BottomSheet {
                             cx.notify();
                         }
                     });
-                    if close {
-                        if let Some(d) = dismiss.as_ref() {
-                            d(window, cx);
-                        }
+                    if close && let Some(d) = dismiss.as_ref() {
+                        d(window, cx);
                     }
                 });
             },

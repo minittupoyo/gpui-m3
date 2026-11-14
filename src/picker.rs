@@ -403,7 +403,7 @@ impl RenderOnce for DatePicker {
         let input_state = window.use_keyed_state(
             SharedString::from(format!("{}::dateinput", self.id)),
             cx,
-            |window, cx| DateInput::new(window, cx),
+            DateInput::new,
         );
         let can_input = self.modal && self.range.is_none();
         let input_on = can_input && input_state.read(cx).on;
@@ -920,7 +920,7 @@ impl RenderOnce for TimePicker {
         let input_state = window.use_keyed_state(
             SharedString::from(format!("{}::timeinput", self.id)),
             cx,
-            |window, cx| TimeInput::new(window, cx),
+            TimeInput::new,
         );
         let input_on = input_state.read(cx).on;
         {
@@ -941,7 +941,7 @@ impl RenderOnce for TimePicker {
         let is_pm = self.hour >= 12;
         let shown_h = if self.is_24h {
             self.hour
-        } else if self.hour % 12 == 0 {
+        } else if self.hour.is_multiple_of(12) {
             12
         } else {
             self.hour % 12
@@ -1085,7 +1085,7 @@ impl RenderOnce for TimePicker {
         // (値, 位置の角度 0..1, 半径)
         let items: Vec<(String, u32, f32, f32)> = match mode {
             TimeMode::Hour if is_24h => (0..12)
-                .map(|i| {
+                .flat_map(|i| {
                     let outer = if i == 0 { 12 } else { i };
                     let inner = if i == 0 { 0 } else { 12 + i };
                     [(outer, R_OUTER), (inner, R_INNER)]
@@ -1093,7 +1093,6 @@ impl RenderOnce for TimePicker {
                         .map(move |(v, r)| (format!("{v:02}"), v, i as f32 / 12., r))
                         .collect::<Vec<_>>()
                 })
-                .flatten()
                 .collect(),
             TimeMode::Hour => (0..12)
                 .map(|i| {
@@ -1223,11 +1222,7 @@ impl RenderOnce for TimePicker {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .m3_type(if r < R_OUTER {
-                        TypeScale::BodyLarge
-                    } else {
-                        TypeScale::BodyLarge
-                    })
+                    .m3_type(TypeScale::BodyLarge)
                     .text_color(if selected { on_primary } else { on_surface })
                     .child(label),
             );
@@ -1255,11 +1250,11 @@ impl RenderOnce for TimePicker {
                     }
                 })
                 .on_mouse_move(move |e, w, cx| {
-                    if e.pressed_button == Some(MouseButton::Left) {
-                        if let Some(h) = &oc2 {
-                            let (hh, mm) = cm2(e.position);
-                            h((hh, mm, false), w, cx);
-                        }
+                    if e.pressed_button == Some(MouseButton::Left)
+                        && let Some(h) = &oc2
+                    {
+                        let (hh, mm) = cm2(e.position);
+                        h((hh, mm, false), w, cx);
                     }
                 })
                 .on_mouse_up(MouseButton::Left, move |e, w, cx| {
