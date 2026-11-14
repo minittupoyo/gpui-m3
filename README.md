@@ -9,6 +9,24 @@ Material Design 3 (Expressive) components for GPUI.
 > 動作確認した GPUI のリビジョンは [`Cargo.lock`](Cargo.lock) の `gpui` の項目を参照してください。
 > このプロジェクトは Google の公式製品ではありません。
 
+<p align="center">
+  <img src="docs/screenshots/buttons.png" alt="Buttons（ダークテーマ）" width="49%">
+  <img src="docs/screenshots/buttons-light.png" alt="Buttons（ライトテーマ）" width="49%">
+</p>
+
+## スクリーンショット
+
+`cargo run --example gallery` のギャラリーです（Windows）。上の 2 枚は Buttons のダークテーマとライトテーマです。
+
+| | |
+|---|---|
+| ![選択](docs/screenshots/selection.png) **Selection** — ボタングループ・スイッチ・チェックボックス・ラジオ | ![チップとカード](docs/screenshots/chips-cards.png) **Chips & Cards** |
+| ![テキスト欄](docs/screenshots/text-fields.png) **Text fields** — フローティングラベル・複数行・パスワード・検証 | ![メニュー](docs/screenshots/menu-submenu.png) **Menus** — 多段のサブメニュー |
+| ![カルーセル](docs/screenshots/carousel.png) **Carousel** — Multi-browse / Hero / Uncontained / Full-screen | ![ピッカー](docs/screenshots/pickers.png) **Date / Time picker** — 範囲選択・年選択・ダイヤル |
+| ![動的カラー](docs/screenshots/color.png) **Dynamic color** — シード色・方式・コントラストから配色を生成 | |
+
+> 画像は `pwsh -File tools/screenshots.ps1`（PowerShell 7、先に `cargo build --example gallery`）で撮り直せます。
+
 ## 特長
 
 - バネ（spring）ベースの Expressive モーション、押下時に角が詰まるシェイプモーフ、
