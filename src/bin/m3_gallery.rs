@@ -106,6 +106,8 @@ struct Gallery {
     search_open: bool,
     date: m3::Date,
     date_view: (i32, u32),
+    date_range: m3::DateRange,
+    range_view: (i32, u32),
     time: (u32, u32),
     time_mode: m3::TimeMode,
     time_24h: bool,
@@ -261,6 +263,8 @@ impl Gallery {
             search_open: false,
             date: m3::Date::new(2026, 11, 14),
             date_view: (2026, 11),
+            date_range: m3::DateRange::new(Some(m3::Date::new(2026, 11, 10)), Some(m3::Date::new(2026, 11, 17))),
+            range_view: (2026, 11),
             time: (9, 41),
             time_mode: m3::TimeMode::Hour,
             time_24h: false,
@@ -2311,6 +2315,15 @@ impl Gallery {
                     .modal(true)
                     .on_select(Self::set(cx, |g, d: m3::Date| g.date = d))
                     .on_month_change(Self::set(cx, |g, ym: (i32, u32)| g.date_view = ym)),
+            )
+            .child(
+                m3::DatePicker::new("dp-range", m3::Date::new(2026, 11, 1))
+                    .year_month(self.range_view.0, self.range_view.1)
+                    .today(today)
+                    .modal(true)
+                    .range(self.date_range)
+                    .on_select(Self::set(cx, |g, d: m3::Date| g.date_range = g.date_range.pick(d)))
+                    .on_month_change(Self::set(cx, |g, ym: (i32, u32)| g.range_view = ym)),
             )
             .child(
                 div()

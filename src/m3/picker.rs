@@ -10,8 +10,8 @@
 use std::{cell::Cell, f32::consts::TAU, rc::Rc};
 
 use gpui::{
-    App, Bounds, ElementId, Hsla, IntoElement, MouseButton, Pixels, RenderOnce, SharedString,
-    Window, canvas, div, point, prelude::*, px,
+    App, Bounds, ElementId, Hsla, IntoElement, MouseButton, Pixels, RenderOnce, ScrollHandle,
+    SharedString, Window, canvas, div, point, prelude::*, px,
 };
 
 use super::{
@@ -54,6 +54,65 @@ impl Date {
         const W: [&str; 7] = ["日", "月", "火", "水", "木", "金", "土"];
         format!("{}月{}日（{}）", self.month, self.day, W[self.weekday() as usize])
     }
+}
+
+/// 範囲選択の状態。`pick` で「開始 → 終了」の順にクリックを反映する
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DateRange {
+    pub start: Option<Date>,
+    pub end: Option<Date>,
+}
+
+impl DateRange {
+    pub fn new(start: Option<Date>, end: Option<Date>) -> Self {
+        Self { start, end }
+    }
+    /// 日付をクリックしたときの次の状態。
+    /// 未選択・選択済み（開始と終了が揃っている）なら新しい開始日、開始のみなら終了日（前後は自動で入れ替え）
+    pub fn pick(self, d: Date) -> Self {
+        match (self.start, self.end) {
+            (Some(s), None) => {
+                if d < s {
+                    Self { start: Some(d), end: Some(s) }
+                } else {
+                    Self { start: Some(s), end: Some(d) }
+                }
+            }
+            _ => Self { start: Some(d), end: None },
+        }
+    }
+    /// 日数（両端を含む）。終了が未定なら 1
+    pub fn days(self) -> Option<u32> {
+        let (s, e) = (self.start?, self.end.unwrap_or(self.start?));
+        Some((days_from_civil(e) - days_from_civil(s)) as u32 + 1)
+    }
+    /// 「11月3日 – 11月9日」（曜日なし。見出し用）
+    pub fn format_compact(self) -> String {
+        match (self.start, self.end) {
+            (Some(s), Some(e)) => format!("{}月{}日 – {}月{}日", s.month, s.day, e.month, e.day),
+            (Some(s), None) => format!("{}月{}日 –", s.month, s.day),
+            _ => String::new(),
+        }
+    }
+    /// 「11月3日（火） – 11月9日（月）」
+    pub fn format_short(self) -> String {
+        match (self.start, self.end) {
+            (Some(s), Some(e)) => format!("{} – {}", s.format_short(), e.format_short()),
+            (Some(s), None) => format!("{} –", s.format_short()),
+            _ => String::new(),
+        }
+    }
+}
+
+/// 1970-01-01 からの通算日数（グレゴリオ暦）
+fn days_from_civil(d: Date) -> i64 {
+    let y = if d.month <= 2 { d.year - 1 } else { d.year } as i64;
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let m = d.month as i64;
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d.day as i64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
 }
 
 pub fn is_leap_year(y: i32) -> bool {
@@ -100,6 +159,8 @@ pub struct DatePicker {
     modal: bool,
     min: Option<Date>,
     max: Option<Date>,
+    range: Option<DateRange>,
+    year_range: (i32, i32),
     on_select: Option<ChangeHandler<Date>>,
     on_month_change: Option<ChangeHandler<(i32, u32)>>,
 }
@@ -116,9 +177,22 @@ impl DatePicker {
             modal: false,
             min: None,
             max: None,
+            range: None,
+            year_range: (1900, 2100),
             on_select: None,
             on_month_change: None,
         }
+    }
+    /// 範囲選択モード。クリックのたびに `on_select` が呼ばれるので、`DateRange::pick` で状態を更新する
+    pub fn range(mut self, range: DateRange) -> Self {
+        self.range = Some(range);
+        self.selected = None;
+        self
+    }
+    /// 年選択で選べる年の範囲（既定 1900〜2100）
+    pub fn year_range(mut self, min: i32, max: i32) -> Self {
+        self.year_range = (min, max.max(min));
+        self
     }
     /// 表示する年月（月送りで変える）
     pub fn year_month(mut self, year: i32, month: u32) -> Self {
@@ -160,8 +234,24 @@ impl DatePicker {
     }
 }
 
+struct YearView {
+    open: bool,
+    /// 開いた直後に選択中の年へスクロールする
+    pending: bool,
+    scroll: ScrollHandle,
+}
+
 impl RenderOnce for DatePicker {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let year_state = window.use_keyed_state(
+            SharedString::from(format!("{}::yearview", self.id)),
+            cx,
+            |_, _| YearView { open: false, pending: false, scroll: ScrollHandle::new() },
+        );
+        let (year_open, year_scroll) = {
+            let s = year_state.read(cx);
+            (s.open, s.scroll.clone())
+        };
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let (y, m) = (self.year, self.month);
@@ -176,24 +266,44 @@ impl RenderOnce for DatePicker {
                 }
             })
         };
+        let toggle = year_state.clone();
+        let title = div()
+            .id(ElementId::Name(format!("{}-title", self.id).into()))
+            .flex()
+            .items_center()
+            .gap(px(2.))
+            .h(px(40.))
+            .pl(px(4.))
+            .pr(px(6.))
+            .rounded(shape::FULL)
+            .cursor_pointer()
+            .hover(move |s| s.bg(c.on_surface_variant.opacity(state::HOVER)))
+            .m3_type(TypeScale::LabelLarge)
+            .text_color(c.on_surface_variant)
+            .child(format!("{y}年{m}月"))
+            .child(
+                Icon::new(if year_open { IconName::ArrowDropUp } else { IconName::ArrowDropDown })
+                    .size(px(24.))
+                    .color(c.on_surface_variant),
+            )
+            .on_click(move |_, _, cx| {
+                toggle.update(cx, |s, cx| {
+                    s.open = !s.open;
+                    s.pending = s.open;
+                    cx.notify();
+                })
+            });
         let title_row = div()
             .flex()
             .items_center()
             .justify_between()
             .h(px(48.))
-            .px(px(12.))
-            .child(
-                div()
-                    .m3_type(TypeScale::LabelLarge)
-                    .text_color(c.on_surface_variant)
-                    .child(format!("{y}年{m}月")),
-            )
-            .child(
-                div()
-                    .flex()
-                    .child(nav(-1, IconName::ChevronLeft, format!("{}-prev", self.id)))
-                    .child(nav(1, IconName::ChevronRight, format!("{}-next", self.id))),
-            );
+            .pl(px(8.))
+            .child(title)
+            .child(div().flex().pr(px(12.)).when(!year_open, |d| {
+                d.child(nav(-1, IconName::ChevronLeft, format!("{}-prev", self.id)))
+                    .child(nav(1, IconName::ChevronRight, format!("{}-next", self.id)))
+            }));
 
         let mut week = div().flex().px(px(12.));
         for w in ["日", "月", "火", "水", "木", "金", "土"] {
@@ -224,12 +334,25 @@ impl RenderOnce for DatePicker {
                     continue;
                 }
                 let date = Date::new(y, m, d as u32);
-                let is_sel = self.selected == Some(date);
+                // 範囲選択: 両端と、その間を結ぶ帯
+                let (lo, hi) = match self.range {
+                    Some(DateRange { start: Some(s), end }) => (Some(s), Some(end.unwrap_or(s))),
+                    _ => (None, None),
+                };
+                let is_edge = lo == Some(date) || hi == Some(date);
+                let multi = lo.is_some() && lo != hi;
+                let in_band = multi && lo.is_some_and(|l| date > l) && hi.is_some_and(|h| date < h);
+                let band_l = multi && (lo == Some(date) || (in_band && (col == 0 || d == 1)));
+                let band_r = multi && (hi == Some(date) || (in_band && (col == 6 || d == dim as i32)));
+                let band = multi && (in_band || is_edge);
+                let is_sel = self.selected == Some(date) || (self.range.is_some() && is_edge);
                 let is_today = self.today == Some(date);
                 let disabled = self.min.is_some_and(|mn| date < mn)
                     || self.max.is_some_and(|mx| date > mx);
                 let (bg, fg): (Option<Hsla>, Hsla) = if is_sel {
                     (Some(c.primary), c.on_primary)
+                } else if in_band {
+                    (None, c.on_secondary_container)
                 } else if is_today {
                     (None, c.primary)
                 } else {
@@ -259,9 +382,84 @@ impl RenderOnce for DatePicker {
                             }
                         });
                 }
-                r = r.child(cell);
+                // 帯は隣のセルと隙間なくつなぐ（両端は半円）
+                let band_bg = c.secondary_container;
+                let wrap = div()
+                    .size(px(40.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .when(band, |d| d.bg(band_bg))
+                    .when(band && band_l && !band_r, |d| d.rounded_l(shape::FULL))
+                    .when(band && band_r && !band_l, |d| d.rounded_r(shape::FULL))
+                    .when(band && band_l && band_r, |d| d.rounded(shape::FULL))
+                    .child(cell);
+                r = r.child(wrap);
             }
             grid = grid.child(r);
+        }
+
+        // ----- 年選択 -----
+        let (y_min, y_max) = self.year_range;
+        let years: Vec<i32> = (y_min..=y_max).collect();
+        let year_body = {
+            let mut list = div()
+                .id(ElementId::Name(format!("{}-years", self.id).into()))
+                .track_scroll(&year_scroll)
+                .h(px(40. * 7. + 12.))
+                .overflow_y_scroll()
+                .px(px(12.))
+                .pb(px(12.));
+            for (ri, chunk) in years.chunks(3).enumerate() {
+                let mut row = div().flex().items_center().justify_around().h(px(52.));
+                for &yr in chunk {
+                    let selected = yr == y;
+                    let is_now = self.today.is_some_and(|t| t.year == yr);
+                    let h = self.on_month_change.clone();
+                    let close = year_state.clone();
+                    row = row.child(
+                        div()
+                            .id(ElementId::Name(format!("{}-y{yr}", self.id).into()))
+                            .w(px(72.))
+                            .h(px(36.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(shape::FULL)
+                            .m3_type(TypeScale::BodyLarge)
+                            .cursor_pointer()
+                            .when(selected, |d| d.bg(c.primary).text_color(c.on_primary))
+                            .when(!selected && is_now, |d| {
+                                d.border_1().border_color(c.outline).text_color(c.primary)
+                            })
+                            .when(!selected, |d| {
+                                d.hover(move |s| s.bg(c.on_surface.opacity(state::HOVER)))
+                            })
+                            .child(yr.to_string())
+                            .on_click(move |_, w, cx| {
+                                if let Some(h) = &h {
+                                    h((yr, m), w, cx);
+                                }
+                                close.update(cx, |s, cx| {
+                                    s.open = false;
+                                    cx.notify();
+                                });
+                            }),
+                    );
+                }
+                let _ = ri;
+                list = list.child(row);
+            }
+            list
+        };
+        if year_open {
+            let pending = year_state.update(cx, |s, _| std::mem::take(&mut s.pending));
+            if pending {
+                // 選択中の年が上から 2 行目あたりに来るようにスクロールする
+                let row = ((y - y_min).max(0) / 3) as f32;
+                let off = ((row - 1.).max(0.)) * 52.;
+                year_scroll.set_offset(point(px(0.), px(-off)));
+            }
         }
 
         let mut root = div()
@@ -282,24 +480,36 @@ impl RenderOnce for DatePicker {
                             div()
                                 .m3_type(TypeScale::LabelLarge)
                                 .text_color(c.on_surface_variant)
-                                .child("日付を選択"),
+                                .child(if self.range.is_some() { "期間を選択" } else { "日付を選択" }),
                         )
                         .child(
                             div()
                                 .h(px(52.))
                                 .flex()
                                 .items_center()
-                                .m3_type(TypeScale::HeadlineLarge)
-                                .child(
-                                    self.selected
+                                .m3_type(if self.range.is_some() {
+                                    TypeScale::HeadlineSmall
+                                } else {
+                                    TypeScale::HeadlineLarge
+                                })
+                                .child(match self.range {
+                                    Some(r) if r.start.is_some() => r.format_compact(),
+                                    Some(_) => "開始日 – 終了日".into(),
+                                    None => self
+                                        .selected
                                         .map(|d| d.format_short())
                                         .unwrap_or_else(|| "日付を選択".into()),
-                                ),
+                                }),
                         ),
                 )
                 .child(Divider::horizontal());
         }
-        root.child(title_row).child(week).child(grid)
+        root = root.child(title_row);
+        if year_open {
+            root.child(year_body)
+        } else {
+            root.child(week).child(grid)
+        }
     }
 }
 
