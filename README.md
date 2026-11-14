@@ -117,6 +117,19 @@ let colors = &cx.m3().colors;                                // 現在の配色�
 - 未実装: スクリーンリーダー対応、RTL、密度（Density）設定、範囲選択の入力モード。
 - GPUI の API 変更に追従する必要があります（git 依存のため、`cargo update` で壊れることがあります）。
 
+## 開発
+
+```sh
+cargo run --example gallery        # ギャラリーで見た目と操作を確認
+cargo test                         # 単体テスト（日付計算・範囲選択・影の補間・カルーセルの幅計算など）
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo doc --no-deps --open
+```
+
+CI（`.github/workflows/ci.yml`）は Windows で、上と同じ検証を実行します。
+ギャラリーは `M3_PAGE=<番号>` を付けて起動すると、指定したページから始まります（0 = Buttons、10 = More）。
+
 ## ライセンス
 
 [MIT](LICENSE-MIT) または [Apache-2.0](LICENSE-APACHE) のどちらかを選べます。
