@@ -12,12 +12,12 @@
 フォントはライブラリのバイナリに埋め込まれて配布されます。OFL に従い、フォント単体を
 単独で販売することはできません（ソフトウェアに同梱して配布する分には問題ありません）。
 
-## Material アイコン
+## Material Symbols（アイコン）
 
-- 場所: `src/icons.rs`（24×24 の SVG パスを埋め込み）
+- 場所: `src/symbols.rs`（Outlined、wght 400、opsz 24 の SVG パスデータ。`tools/gen_symbols.py` で生成）
 - Copyright Google LLC
 - ライセンス: Apache License, Version 2.0（`LICENSE-APACHE` と同一の条文）
-- 出典: Material Icons / Material Symbols (<https://fonts.google.com/icons>)
+- 出典: <https://github.com/google/material-design-icons>（<https://fonts.google.com/icons>）
 
 ## 依存クレート
 

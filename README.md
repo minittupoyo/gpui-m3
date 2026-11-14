@@ -16,7 +16,8 @@ Material Design 3 (Expressive) components for GPUI.
 - Tab / Shift+Tab のフォーカス移動、Enter / Space での実行、Esc で閉じる、などのキーボード操作
 - 日本語入力（IME）対応のテキスト欄（複数行・パスワード・Undo/Redo・クリップボード）
 - 明暗テーマと、シード色から生成する動的カラー
-- Roboto Flex を同梱（登録は `init` が行う）。アイコンも同梱で追加ファイル不要
+- Roboto Flex と Material Symbols（Outlined）のアイコンを同梱。追加ファイルは要らない
+- アイコンは塗りなしが既定で、選択中のナビゲーション項目などは自動で塗りつぶしになる（`Icon::filled`）
 
 ## 部品
 
@@ -114,6 +115,8 @@ let colors = &cx.m3().colors;                                // 現在の配色�
 - GPUI は可変フォントの軸のうち太さ（wght）しか指定できないため、Roboto Flex の幅・光学サイズ・
   グレードの軸は使えません。
 - 日本語はシステムフォントにフォールバックします（Roboto Flex に和文の字形が無いため）。
+- アイコンは Material Symbols の Outlined（wght 400）だけを埋め込んでいます。Rounded / Sharp や
+  太さ・グレードの違い、他のアイコンの追加は `tools/gen_symbols.py` で生成し直します。
 - 未実装: スクリーンリーダー対応、RTL、密度（Density）設定、範囲選択の入力モード。
 - GPUI の API 変更に追従する必要があります（git 依存のため、`cargo update` で壊れることがあります）。
 
