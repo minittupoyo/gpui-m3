@@ -2218,6 +2218,54 @@ impl Gallery {
             .into_any_element(),
         );
 
+        // ----- Carousel -----
+        let palette = [
+            (c.primary_container, c.on_primary_container),
+            (c.secondary_container, c.on_secondary_container),
+            (c.tertiary_container, c.on_tertiary_container),
+            (c.error_container, c.on_error_container),
+            (c.surface_container_highest, c.on_surface),
+        ];
+        let car = |id: &'static str, kind: m3::CarouselKind, h: f32| {
+            let mut cr = m3::Carousel::new(id).kind(kind).height(h);
+            for i in 0..9 {
+                let (bg, fg) = palette[i % palette.len()];
+                cr = cr.item(
+                    bg,
+                    div()
+                        .size_full()
+                        .flex()
+                        .flex_col()
+                        .justify_end()
+                        .p(px(16.))
+                        .text_color(fg)
+                        .child(div().m3_type(TypeScale::HeadlineSmall).whitespace_nowrap().child(format!("項目 {}", i + 1)))
+                        .child(div().m3_type(TypeScale::BodyMedium).whitespace_nowrap().child("サブテキスト")),
+                );
+            }
+            cr
+        };
+        out.push(
+            section(
+                cx,
+                "Carousel",
+                "ドラッグ・横スクロール・←→キー（クリックしてフォーカス）。Multi-browse / Hero / Uncontained / Full-screen",
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(24.))
+                    .child(caption(cx, "Multi-browse"))
+                    .child(car("car-multi", m3::CarouselKind::MultiBrowse, 200.))
+                    .child(caption(cx, "Hero"))
+                    .child(car("car-hero", m3::CarouselKind::Hero, 200.))
+                    .child(caption(cx, "Uncontained"))
+                    .child(car("car-unc", m3::CarouselKind::Uncontained, 160.))
+                    .child(caption(cx, "Full-screen"))
+                    .child(car("car-full", m3::CarouselKind::FullScreen, 200.)),
+            )
+            .into_any_element(),
+        );
+
         // ----- Search bar / Search view -----
         let query = self.search_field.read(cx).text().to_string();
         let words = ["Aurora", "Blue Hour", "Cascade", "Daybreak", "Echoes", "Firefly"];
