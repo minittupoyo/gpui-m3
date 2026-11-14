@@ -7,17 +7,30 @@
 //!     .on_change(|(h, m, done), _, cx| ...).on_mode(|mode, _, cx| ...)
 //! ```
 
-use std::{cell::Cell, f32::consts::TAU, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    f32::consts::TAU,
+    rc::Rc,
+};
 
 use gpui::{
-    App, Bounds, ElementId, Hsla, IntoElement, MouseButton, Pixels, RenderOnce, ScrollHandle,
-    SharedString, Window, canvas, div, point, prelude::*, px,
+    App, Bounds, Context, ElementId, Entity, Hsla, IntoElement, MouseButton, Pixels, RenderOnce,
+    ScrollHandle, SharedString, Subscription, Window, canvas, div, point, prelude::*, px,
 };
 
 use super::{
-    ActiveTheme, ChangeHandler, Divider, Icon, IconButton, IconName, StyledExt, TypeScale, shape,
-    state,
+    ActiveTheme, ChangeHandler, Divider, Icon, IconButton, IconName, StyledExt, TextField,
+    TextFieldEvent, TypeScale, shape, state,
 };
+
+/// 入力欄のイベントなど、`Window` を持たない場所からハンドラを呼ぶ
+fn call_later(cx: &mut App, f: impl FnOnce(&mut Window, &mut App) + 'static) {
+    if let Some(w) = cx.active_window() {
+        cx.defer(move |cx| {
+            w.update(cx, |_, window, cx| f(window, cx)).ok();
+        });
+    }
+}
 
 // ---------------------------------------------------------------------------
 // 日付計算
@@ -37,6 +50,10 @@ impl Date {
     /// 0 = 日曜
     pub fn weekday(self) -> u32 {
         weekday(self.year, self.month, self.day)
+    }
+    /// 入力欄用の「2026/11/14」
+    pub fn format_input(self) -> String {
+        format!("{:04}/{:02}/{:02}", self.year, self.month, self.day)
     }
     /// 「2026年11月14日（土）」
     pub fn format_long(self) -> String {
@@ -113,6 +130,26 @@ fn days_from_civil(d: Date) -> i64 {
     let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d.day as i64 - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     era * 146097 + doe - 719468
+}
+
+/// 「2026/11/14」「2026-11-14」「2026.11.14」「2026年11月14日」を解釈する。存在しない日付は None
+pub fn parse_date(text: &str) -> Option<Date> {
+    let groups: Vec<&str> = text
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|g| !g.is_empty())
+        .collect();
+    if groups.len() != 3 || groups[0].len() != 4 {
+        return None;
+    }
+    let (y, m, d) = (
+        groups[0].parse::<i32>().ok()?,
+        groups[1].parse::<u32>().ok()?,
+        groups[2].parse::<u32>().ok()?,
+    );
+    if !(1..=12).contains(&m) || d < 1 || d > days_in_month(y, m) {
+        return None;
+    }
+    Some(Date::new(y, m, d))
 }
 
 pub fn is_leap_year(y: i32) -> bool {
@@ -234,6 +271,89 @@ impl DatePicker {
     }
 }
 
+struct DateShared {
+    selected: Option<Date>,
+    min: Option<Date>,
+    max: Option<Date>,
+    on_select: Option<ChangeHandler<Date>>,
+    on_month: Option<ChangeHandler<(i32, u32)>>,
+}
+
+/// 入力モードの状態（テキスト欄とハンドラを保持する）
+struct DateInput {
+    on: bool,
+    field: Entity<TextField>,
+    shared: Rc<RefCell<DateShared>>,
+    synced: Option<Option<Date>>,
+    _sub: Subscription,
+}
+
+impl DateInput {
+    fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let field = cx.new(|cx| {
+            TextField::new(window, cx)
+                .outlined()
+                .label("日付")
+                .placeholder("yyyy/mm/dd")
+                .supporting_text("例: 2026/11/14")
+                .notch_background(|c| c.surface_container_high)
+        });
+        let shared = Rc::new(RefCell::new(DateShared {
+            selected: None,
+            min: None,
+            max: None,
+            on_select: None,
+            on_month: None,
+        }));
+        let sh = shared.clone();
+        let sub = cx.subscribe(&field, move |_this, field, ev: &TextFieldEvent, cx| {
+            let text = match ev {
+                TextFieldEvent::Changed(t) => t.clone(),
+                TextFieldEvent::Blurred => field.read(cx).text(),
+                _ => return,
+            };
+            let blurred = matches!(ev, TextFieldEvent::Blurred);
+            if text.trim().is_empty() {
+                field.update(cx, |f, cx| f.set_error(None, cx));
+                return;
+            }
+            let Some(date) = parse_date(&text) else {
+                // 入力途中で警告が出ないよう、フォーカスが外れたときだけ知らせる
+                if blurred {
+                    field.update(cx, |f, cx| {
+                        f.set_error(Some("日付の形式が正しくありません（yyyy/mm/dd）".into()), cx)
+                    });
+                }
+                return;
+            };
+            let (out_of_range, changed, on_select, on_month) = {
+                let s = sh.borrow();
+                (
+                    s.min.is_some_and(|m| date < m) || s.max.is_some_and(|m| date > m),
+                    s.selected != Some(date),
+                    s.on_select.clone(),
+                    s.on_month.clone(),
+                )
+            };
+            field.update(cx, |f, cx| {
+                f.set_error(out_of_range.then(|| "選択できない日付です".into()), cx)
+            });
+            if out_of_range || !changed {
+                return;
+            }
+            call_later(cx, move |w, cx| {
+                if let Some(h) = &on_month {
+                    h((date.year, date.month), w, cx);
+                }
+                if let Some(h) = &on_select {
+                    h(date, w, cx);
+                }
+            });
+        });
+        Self { on: false, field, shared, synced: None, _sub: sub }
+    }
+}
+
 struct YearView {
     open: bool,
     /// 開いた直後に選択中の年へスクロールする
@@ -252,6 +372,38 @@ impl RenderOnce for DatePicker {
             let s = year_state.read(cx);
             (s.open, s.scroll.clone())
         };
+        // 入力モード（単一日付のモーダルのみ）
+        let input_state = window.use_keyed_state(
+            SharedString::from(format!("{}::dateinput", self.id)),
+            cx,
+            |window, cx| DateInput::new(window, cx),
+        );
+        let can_input = self.modal && self.range.is_none();
+        let input_on = can_input && input_state.read(cx).on;
+        if can_input {
+            let st = input_state.read(cx);
+            *st.shared.borrow_mut() = DateShared {
+                selected: self.selected,
+                min: self.min,
+                max: self.max,
+                on_select: self.on_select.clone(),
+                on_month: self.on_month_change.clone(),
+            };
+        }
+        let input_field = input_state.read(cx).field.clone();
+        if input_on {
+            // 選択中の日付を入力欄に反映する（入力中は書き換えない）
+            let focused = input_field.read(cx).is_focused(window);
+            let need = input_state.read(cx).synced != Some(self.selected);
+            // 解釈できない文字列が入っている間は、警告を残すため書き換えない
+            let text = input_field.read(cx).text();
+            let invalid = !text.trim().is_empty() && parse_date(&text).is_none();
+            if need && !focused && !invalid {
+                input_state.update(cx, |s, _| s.synced = Some(self.selected));
+                let txt = self.selected.map(|d| d.format_input()).unwrap_or_default();
+                input_field.update(cx, |f, cx| f.set_text(txt, cx));
+            }
+        }
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let (y, m) = (self.year, self.month);
@@ -487,6 +639,8 @@ impl RenderOnce for DatePicker {
                                 .h(px(52.))
                                 .flex()
                                 .items_center()
+                                .justify_between()
+                                .child(div()
                                 .m3_type(if self.range.is_some() {
                                     TypeScale::HeadlineSmall
                                 } else {
@@ -499,16 +653,39 @@ impl RenderOnce for DatePicker {
                                         .selected
                                         .map(|d| d.format_short())
                                         .unwrap_or_else(|| "日付を選択".into()),
+                                }))
+                                .when(can_input, |d| {
+                                    let st = input_state.clone();
+                                    d.child(
+                                        IconButton::new(
+                                            format!("{}-mode", self.id),
+                                            if input_on { IconName::CalendarMonth } else { IconName::Keyboard },
+                                        )
+                                        .on_click(move |_, _, cx| {
+                                            st.update(cx, |s, cx| {
+                                                s.on = !s.on;
+                                                s.synced = None;
+                                                let f = s.field.clone();
+                                                f.update(cx, |f, cx| f.set_text("", cx));
+                                                cx.notify();
+                                            })
+                                        }),
+                                    )
                                 }),
                         ),
                 )
                 .child(Divider::horizontal());
         }
+        if input_on {
+            return root
+                .child(div().px(px(24.)).pt(px(24.)).pb(px(24.)).child(input_field))
+                .into_any_element();
+        }
         root = root.child(title_row);
         if year_open {
-            root.child(year_body)
+            root.child(year_body).into_any_element()
         } else {
-            root.child(week).child(grid)
+            root.child(week).child(grid).into_any_element()
         }
     }
 }
@@ -577,12 +754,118 @@ impl TimePicker {
     }
 }
 
+struct TimeShared {
+    hour: u32,
+    minute: u32,
+    is_24h: bool,
+    on_change: Option<ChangeHandler<(u32, u32, bool)>>,
+}
+
+/// 入力モードの状態（時・分のテキスト欄とハンドラ）
+struct TimeInput {
+    on: bool,
+    hour_f: Entity<TextField>,
+    min_f: Entity<TextField>,
+    shared: Rc<RefCell<TimeShared>>,
+    synced_h: Option<(u32, bool)>,
+    synced_m: Option<u32>,
+    _subs: Vec<Subscription>,
+}
+
+impl TimeInput {
+    fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let mut mk = |label: &'static str| {
+            cx.new(|cx| {
+                TextField::new(window, cx)
+                    .outlined()
+                    .label(label)
+                    .notch_background(|c| c.surface_container_high)
+            })
+        };
+        let hour_f = mk("時");
+        let min_f = mk("分");
+        let shared = Rc::new(RefCell::new(TimeShared {
+            hour: 0,
+            minute: 0,
+            is_24h: false,
+            on_change: None,
+        }));
+        let mut subs = vec![];
+        for (is_hour, field) in [(true, hour_f.clone()), (false, min_f.clone())] {
+            let sh = shared.clone();
+            subs.push(cx.subscribe(&field, move |_this, field, ev: &TextFieldEvent, cx| {
+                let TextFieldEvent::Changed(text) = ev else {
+                    return;
+                };
+                // 数字以外は取り除く
+                let clean: String = text.chars().filter(|c| c.is_ascii_digit()).take(2).collect();
+                if clean != text.as_ref() {
+                    field.update(cx, |f, cx| f.set_text(clean, cx));
+                    return;
+                }
+                if clean.is_empty() {
+                    field.update(cx, |f, cx| f.set_error(None, cx));
+                    return;
+                }
+                let n: u32 = clean.parse().unwrap_or(99);
+                let (hour, minute, is_24h, on_change) = {
+                    let s = sh.borrow();
+                    (s.hour, s.minute, s.is_24h, s.on_change.clone())
+                };
+                let is_pm = hour >= 12;
+                let (valid, msg, new_h, new_m) = if is_hour {
+                    if is_24h {
+                        (n <= 23, "0〜23", n, minute)
+                    } else {
+                        (
+                            (1..=12).contains(&n),
+                            "1〜12",
+                            n % 12 + if is_pm { 12 } else { 0 },
+                            minute,
+                        )
+                    }
+                } else {
+                    (n <= 59, "0〜59", hour, n)
+                };
+                field.update(cx, |f, cx| f.set_error((!valid).then(|| msg.into()), cx));
+                if valid && (new_h, new_m) != (hour, minute) {
+                    call_later(cx, move |w, cx| {
+                        if let Some(h) = &on_change {
+                            h((new_h, new_m, true), w, cx);
+                        }
+                    });
+                }
+            }));
+        }
+        Self { on: false, hour_f, min_f, shared, synced_h: None, synced_m: None, _subs: subs }
+    }
+}
+
 const DIAL: f32 = 256.;
 const R_OUTER: f32 = 101.;
 const R_INNER: f32 = 66.;
 
 impl RenderOnce for TimePicker {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let input_state = window.use_keyed_state(
+            SharedString::from(format!("{}::timeinput", self.id)),
+            cx,
+            |window, cx| TimeInput::new(window, cx),
+        );
+        let input_on = input_state.read(cx).on;
+        {
+            let st = input_state.read(cx);
+            *st.shared.borrow_mut() = TimeShared {
+                hour: self.hour,
+                minute: self.minute,
+                is_24h: self.is_24h,
+                on_change: self.on_change.clone(),
+            };
+        }
+        let (hour_f, min_f) = {
+            let st = input_state.read(cx);
+            (st.hour_f.clone(), st.min_f.clone())
+        };
         let theme = cx.m3().clone();
         let c = &theme.colors;
         let is_pm = self.hour >= 12;
@@ -594,6 +877,22 @@ impl RenderOnce for TimePicker {
             self.hour % 12
         };
         let (hour, minute, is_24h, mode) = (self.hour, self.minute, self.is_24h, self.mode);
+
+        if input_on {
+            // 入力中の欄は書き換えず、外から値が変わったときだけ反映する
+            let (sh, sm) = {
+                let st = input_state.read(cx);
+                (st.synced_h, st.synced_m)
+            };
+            if sh != Some((hour, is_24h)) && !hour_f.read(cx).is_focused(window) {
+                input_state.update(cx, |s, _| s.synced_h = Some((hour, is_24h)));
+                hour_f.update(cx, |f, cx| f.set_text(format!("{shown_h:02}"), cx));
+            }
+            if sm != Some(minute) && !min_f.read(cx).is_focused(window) {
+                input_state.update(cx, |s, _| s.synced_m = Some(minute));
+                min_f.update(cx, |f, cx| f.set_text(format!("{minute:02}"), cx));
+            }
+        }
 
         // ----- 表示部 -----
         let time_box = |label: String, active: bool, id: String, target: TimeMode| {
@@ -638,7 +937,7 @@ impl RenderOnce for TimePicker {
                     }
                 })
         };
-        let mut display = div()
+        let display = div()
             .flex()
             .items_center()
             .gap(px(0.))
@@ -664,23 +963,37 @@ impl RenderOnce for TimePicker {
                 format!("{}-mbox", self.id),
                 TimeMode::Minute,
             ));
-        if !is_24h {
-            display = display.child(
+        let ampm_block = (!is_24h).then(|| {
+            div()
+                .ml(px(12.))
+                .w(px(52.))
+                .h(px(80.))
+                .flex()
+                .flex_none()
+                .flex_col()
+                .rounded(shape::SMALL)
+                .border_1()
+                .border_color(c.outline)
+                .overflow_hidden()
+                .child(set_ampm(false, "AM", format!("{}-am", self.id)))
+                .child(div().h(px(1.)).bg(c.outline))
+                .child(set_ampm(true, "PM", format!("{}-pm", self.id)))
+        });
+        let input_display = div()
+            .flex()
+            .items_start()
+            .child(div().w(px(96.)).child(hour_f))
+            .child(
                 div()
-                    .ml(px(12.))
-                    .w(px(52.))
-                    .h(px(80.))
+                    .w(px(24.))
+                    .h(px(56.))
                     .flex()
-                    .flex_col()
-                    .rounded(shape::SMALL)
-                    .border_1()
-                    .border_color(c.outline)
-                    .overflow_hidden()
-                    .child(set_ampm(false, "AM", format!("{}-am", self.id)))
-                    .child(div().h(px(1.)).bg(c.outline))
-                    .child(set_ampm(true, "PM", format!("{}-pm", self.id))),
-            );
-        }
+                    .items_center()
+                    .justify_center()
+                    .m3_type(TypeScale::HeadlineLarge)
+                    .child(":"),
+            )
+            .child(div().w(px(96.)).child(min_f));
 
         // ----- ダイヤル -----
         // (値, 位置の角度 0..1, 半径)
@@ -875,8 +1188,30 @@ impl RenderOnce for TimePicker {
                     .text_color(c.on_surface_variant)
                     .child("時刻を選択"),
             )
-            .child(display)
-            .child(div().flex().justify_center().child(dial))
+            .map(move |d| {
+                if input_on {
+                    d.child(input_display.children(ampm_block))
+                } else {
+                    d.child(display.children(ampm_block))
+                        .child(div().flex().justify_center().child(dial))
+                }
+            })
+            .child(
+                div().flex().items_center().child(
+                    IconButton::new(
+                        format!("{}-mode", self.id),
+                        if input_on { IconName::Schedule } else { IconName::Keyboard },
+                    )
+                    .on_click(move |_, _, cx| {
+                        input_state.update(cx, |s, cx| {
+                            s.on = !s.on;
+                            s.synced_h = None;
+                            s.synced_m = None;
+                            cx.notify();
+                        })
+                    }),
+                ),
+            )
     }
 }
 
