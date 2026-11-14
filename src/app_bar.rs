@@ -32,6 +32,7 @@ pub struct TopAppBar {
     navigation: Option<AnyElement>,
     actions: Vec<AnyElement>,
     scroll: Option<ScrollHandle>,
+    corners: gpui::Corners<gpui::Pixels>,
 }
 
 impl TopAppBar {
@@ -43,7 +44,13 @@ impl TopAppBar {
             navigation: None,
             actions: vec![],
             scroll: None,
+            corners: gpui::Corners::default(),
         }
+    }
+    /// 親コンテナの角丸に合わせる（背景がはみ出さないように。上端に置くなら上側の角）
+    pub fn corners(mut self, corners: gpui::Corners<gpui::Pixels>) -> Self {
+        self.corners = corners;
+        self
     }
     pub fn kind(mut self, kind: AppBarKind) -> Self {
         self.kind = kind;
@@ -184,6 +191,10 @@ impl RenderOnce for TopAppBar {
             .flex()
             .flex_col()
             .overflow_hidden()
+            .rounded_tl(self.corners.top_left)
+            .rounded_tr(self.corners.top_right)
+            .rounded_br(self.corners.bottom_right)
+            .rounded_bl(self.corners.bottom_left)
             .h(px(height))
             .bg(bg)
             .child(top);

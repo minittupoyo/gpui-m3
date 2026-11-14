@@ -416,6 +416,7 @@ pub struct ListItem {
     leading: Option<AnyElement>,
     trailing: Option<AnyElement>,
     on_click: Option<ClickHandler>,
+    corners: gpui::Corners<gpui::Pixels>,
 }
 
 impl ListItem {
@@ -427,7 +428,14 @@ impl ListItem {
             leading: None,
             trailing: None,
             on_click: None,
+            corners: gpui::Corners::all(px(0.)),
         }
+    }
+    /// 親コンテナの角丸に合わせる（ホバー・波紋がはみ出さないように）。
+    /// 先頭の項目は上側、末尾の項目は下側の角にコンテナの半径を指定する
+    pub fn corners(mut self, corners: gpui::Corners<gpui::Pixels>) -> Self {
+        self.corners = corners;
+        self
     }
     pub fn supporting(mut self, text: impl Into<SharedString>) -> Self {
         self.supporting = Some(text.into());
@@ -467,13 +475,17 @@ impl RenderOnce for ListItem {
             .gap(px(16.))
             .px(px(16.))
             .py(px(8.))
+            .rounded_tl(self.corners.top_left)
+            .rounded_tr(self.corners.top_right)
+            .rounded_br(self.corners.bottom_right)
+            .rounded_bl(self.corners.bottom_left)
             .min_h(theme.density.shrink_by(
                 px(if self.supporting.is_some() { 72. } else { 56. }),
                 4.,
                 40.,
             ));
         if let Some(r) = ripple.as_ref() {
-            el = el.child(ripple_overlay(r, fg, gpui::Corners::all(px(0.))));
+            el = el.child(ripple_overlay(r, fg, self.corners));
             el = track_ripple(el, r);
         }
         if let Some(l) = self.leading {

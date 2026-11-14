@@ -57,6 +57,8 @@ pub struct Tabs {
     variant: TabsVariant,
     scrollable: bool,
     on_select: Option<ChangeHandler<usize>>,
+    /// 親コンテナの上側の角丸
+    top_radius: Pixels,
 }
 
 impl Tabs {
@@ -68,7 +70,13 @@ impl Tabs {
             variant: TabsVariant::Primary,
             scrollable: false,
             on_select: None,
+            top_radius: px(0.),
         }
+    }
+    /// 親コンテナの上側の角丸に合わせる（ホバー・波紋がはみ出さないように）
+    pub fn top_radius(mut self, r: Pixels) -> Self {
+        self.top_radius = r;
+        self
     }
     /// タブが多いときに横スクロールさせる（各タブは内容の幅になる）
     pub fn scrollable(mut self, v: bool) -> Self {
@@ -208,6 +216,11 @@ impl RenderOnce for Tabs {
 
             let tab_id: SharedString = format!("{}-{i}", self.id).into();
             let ripple = use_ripple(&tab_id, window, cx);
+            let corners = gpui::Corners {
+                top_left: if i == 0 { self.top_radius } else { px(0.) },
+                top_right: if i + 1 == n { self.top_radius } else { px(0.) },
+                ..Default::default()
+            };
             let mut tab_el = div()
                 .id(ElementId::Name(tab_id.clone()))
                 .relative()
@@ -218,13 +231,11 @@ impl RenderOnce for Tabs {
                 .items_center()
                 .justify_center()
                 .px(px(16.))
+                .rounded_tl(corners.top_left)
+                .rounded_tr(corners.top_right)
                 .cursor_pointer()
                 .hover(move |s| s.bg(layer))
-                .child(ripple_overlay(
-                    &ripple,
-                    c.on_surface,
-                    gpui::Corners::all(px(0.)),
-                ))
+                .child(ripple_overlay(&ripple, c.on_surface, corners))
                 .child(
                     canvas(
                         move |b, _, cx| {

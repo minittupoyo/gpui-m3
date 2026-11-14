@@ -168,6 +168,7 @@ pub struct DockedToolbar {
     id: SharedString,
     items: Vec<ToolbarItem>,
     vibrant: bool,
+    corners: gpui::Corners<gpui::Pixels>,
 }
 
 impl DockedToolbar {
@@ -176,7 +177,13 @@ impl DockedToolbar {
             id: id.into(),
             items: vec![],
             vibrant: false,
+            corners: gpui::Corners::default(),
         }
+    }
+    /// 親コンテナの角丸に合わせる（背景がはみ出さないように。下端に置くなら下側の角）
+    pub fn corners(mut self, corners: gpui::Corners<gpui::Pixels>) -> Self {
+        self.corners = corners;
+        self
     }
     pub fn item(mut self, item: impl Into<ToolbarItem>) -> Self {
         self.items.push(item.into());
@@ -200,6 +207,10 @@ impl RenderOnce for DockedToolbar {
             .items_center()
             .justify_around()
             .px(px(16.))
+            .rounded_tl(self.corners.top_left)
+            .rounded_tr(self.corners.top_right)
+            .rounded_br(self.corners.bottom_right)
+            .rounded_bl(self.corners.bottom_left)
             .bg(bg)
             .text_color(fg);
         for (i, item) in self.items.into_iter().enumerate() {

@@ -320,7 +320,9 @@ pub(crate) fn ripple_overlay(
             window.request_animation_frame();
         },
     )
+    // size_full だけだと、padding のある親では静的位置（padding 分ずれた場所）から
+    // 描かれてしまうので、四辺を 0 に固定して親いっぱいに広げる
     .absolute()
-    .size_full()
+    .inset_0()
     .into_any_element()
 }

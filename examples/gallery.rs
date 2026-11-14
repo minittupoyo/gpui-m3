@@ -1058,6 +1058,11 @@ impl Gallery {
                     .supporting("明日の打ち合わせの件で…")
                     .leading(avatar("佐", c.primary_container, c.on_primary_container))
                     .trailing(Badge::new(Some(3)))
+                    .corners(gpui::Corners {
+                        top_left: shape::LARGE,
+                        top_right: shape::LARGE,
+                        ..Default::default()
+                    })
                     .on_click(|_, _, _| {}),
             )
             .child(Divider::horizontal())
@@ -1078,6 +1083,11 @@ impl Gallery {
                         c.on_secondary_container,
                     ))
                     .trailing(Icon::new(IconName::MoreVert).color(c.on_surface_variant))
+                    .corners(gpui::Corners {
+                        bottom_left: shape::LARGE,
+                        bottom_right: shape::LARGE,
+                        ..Default::default()
+                    })
                     .on_click(|_, _, _| {}),
             );
         out.push(
@@ -1454,6 +1464,15 @@ impl Gallery {
             list = list.child(
                 ListItem::new(format!("ab-li-{i}"), format!("メッセージ {}", i + 1))
                     .supporting("スクロールするとアプリバーが縮みます")
+                    .corners(if i == 23 {
+                        gpui::Corners {
+                            bottom_left: shape::EXTRA_LARGE,
+                            bottom_right: shape::EXTRA_LARGE,
+                            ..Default::default()
+                        }
+                    } else {
+                        gpui::Corners::default()
+                    })
                     .leading(
                         div()
                             .size(px(40.))
@@ -1480,6 +1499,11 @@ impl Gallery {
             .bg(c.surface)
             .child(
                 TopAppBar::new("受信トレイ")
+                    .corners(gpui::Corners {
+                        top_left: shape::EXTRA_LARGE,
+                        top_right: shape::EXTRA_LARGE,
+                        ..Default::default()
+                    })
                     .kind(kind)
                     .subtitle("未読 12 件")
                     .navigation(IconButton::new("ab-nav", IconName::ArrowBack))
@@ -1538,6 +1562,7 @@ impl Gallery {
                     .bg(c.surface)
                     .child(
                         Tabs::new("tabs-primary", self.primary_tab)
+                            .top_radius(shape::LARGE)
                             .tab(Tab::new(primary_names[0]).icon(IconName::Send))
                             .tab(
                                 Tab::new(primary_names[1])
@@ -1559,6 +1584,7 @@ impl Gallery {
                     .bg(c.surface)
                     .child(
                         Tabs::new("tabs-secondary", self.secondary_tab)
+                            .top_radius(shape::LARGE)
                             .secondary()
                             .tab(Tab::new(secondary_names[0]))
                             .tab(Tab::new(secondary_names[1]))
@@ -1654,12 +1680,19 @@ impl Gallery {
                 .child(content)
         };
 
+        let bottom_corners = |r: gpui::Pixels| gpui::Corners {
+            bottom_left: r,
+            bottom_right: r,
+            ..Default::default()
+        };
         // Docked
-        let mut docked = DockedToolbar::new("tb-docked");
+        let mut docked = DockedToolbar::new("tb-docked").corners(bottom_corners(shape::LARGE));
         for a in actions(cx, 0, self.tb_sel[0], 5) {
             docked = docked.item(a);
         }
-        let mut docked_v = DockedToolbar::new("tb-docked-v").vibrant(true);
+        let mut docked_v = DockedToolbar::new("tb-docked-v")
+            .vibrant(true)
+            .corners(bottom_corners(shape::LARGE));
         for a in actions(cx, 1, self.tb_sel[1], 5) {
             docked_v = docked_v.item(a);
         }
