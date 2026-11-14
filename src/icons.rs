@@ -6,7 +6,7 @@
 
 use std::borrow::Cow;
 
-use crate::symbols::symbol_path;
+use crate::{ActiveTheme, symbols::symbol_path};
 use gpui::{
     App, AssetSource, Hsla, IntoElement, Pixels, RenderOnce, SharedString, Styled, Window, px, svg,
 };
@@ -262,6 +262,7 @@ impl Icon {
         self
     }
 
+    /// 色を指定する。指定しないとテーマの `on_surface` になる（SVG は親の `text_color` を継承しない）
     pub fn color(mut self, color: Hsla) -> Self {
         self.color = Some(color);
         self
@@ -275,17 +276,19 @@ impl Icon {
 }
 
 impl RenderOnce for Icon {
-    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let path = if self.filled || self.name.always_filled() {
             self.name.path_filled()
         } else {
             self.name.path()
         };
-        let el = svg().path(path).size(self.size).flex_none();
-        match self.color {
-            Some(c) => el.text_color(c),
-            None => el,
-        }
+        // SVG は親の text_color を継承しないので、色の指定が無いときはテーマの on_surface にする
+        let color = self.color.unwrap_or_else(|| cx.m3().colors.on_surface);
+        svg()
+            .path(path)
+            .size(self.size)
+            .flex_none()
+            .text_color(color)
     }
 }
 
