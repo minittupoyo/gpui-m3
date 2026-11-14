@@ -25,7 +25,19 @@ Material Design 3 (Expressive) components for GPUI.
 | ![カルーセル](docs/screenshots/carousel.png) **Carousel** — Multi-browse / Hero / Uncontained / Full-screen | ![ピッカー](docs/screenshots/pickers.png) **Date / Time picker** — 範囲選択・年選択・ダイヤル |
 | ![動的カラー](docs/screenshots/color.png) **Dynamic color** — シード色・方式・コントラストから配色を生成 | |
 
-> 画像は `pwsh -File tools/screenshots.ps1`（PowerShell 7、先に `cargo build --example gallery`）で撮り直せます。
+### サンプルアプリ: ToDo リスト
+
+<img src="docs/screenshots/todo.png" alt="ToDo リスト" width="40%" align="right">
+
+`cargo run --example todo`（[`examples/todo.rs`](examples/todo.rs)、約 350 行）は、部品を組み合わせた小さなアプリです。
+
+- `TextField`（Enter で追加）と `Button`、`Chip`（フィルター）、`Checkbox`、`IconButton`、`TopAppBar`
+- 削除すると `Snackbar` に「元に戻す」が出て、4 秒で自動的に消える（`SnackbarHost`）
+- 状態は `Entity` で持ち、入力欄のイベントは `cx.subscribe` で受け取る
+
+<br clear="right">
+
+> 画像は `pwsh -File tools/screenshots.ps1`（PowerShell 7、先に `cargo build --example gallery --example todo`）で撮り直せます。
 
 ## 特長
 
@@ -54,6 +66,7 @@ Material Design 3 (Expressive) components for GPUI.
 ```sh
 cargo run --example gallery   # 全部品のギャラリー
 cargo run --example hello     # 最小の使用例
+cargo run --example todo      # ToDo リスト（実用的なアプリの例）
 ```
 
 ## 導入

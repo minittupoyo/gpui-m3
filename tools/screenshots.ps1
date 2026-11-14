@@ -1,10 +1,12 @@
 # README 用のスクリーンショットをギャラリーから撮り直す（Windows / PowerShell 7）。
 #
-#   cargo build --example gallery
-#   pwsh -File tools/screenshots.ps1
+#   cargo build --example gallery --example todo
+#   pwsh -File tools/screenshots.ps1            # すべて
+#   pwsh -File tools/screenshots.ps1 -Only todo # ToDo の example だけ（gallery も指定できる）
 #
 # ギャラリーを自動で起動・操作して、ウィンドウだけを docs/screenshots/ に保存する。
 # 撮影中はマウスとキーボードを触らず、ギャラリーのウィンドウを他のウィンドウで隠さないこと。
+param([string]$Only = "")
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 Add-Type @"
@@ -69,31 +71,46 @@ function Click($p, $x, $y) {
   Start-Sleep -Milliseconds 900
 }
 
-# 0 Buttons / 1 Selection / 2 Chips & Cards / 6 Text fields / 7 Menus / 9 Color
-foreach ($pair in @(@(0, "buttons"), @(1, "selection"), @(2, "chips-cards"), @(6, "text-fields"), @(9, "color"))) {
-  $p = Start-Gallery $pair[0]
-  Snap $p $pair[1]
+if (-not $Only -or $Only -eq 'gallery') {
+  # 0 Buttons / 1 Selection / 2 Chips & Cards / 6 Text fields / 7 Menus / 9 Color
+  foreach ($pair in @(@(0, "buttons"), @(1, "selection"), @(2, "chips-cards"), @(6, "text-fields"), @(9, "color"))) {
+    $p = Start-Gallery $pair[0]
+    Snap $p $pair[1]
+  }
+
+  # More: carousel
+  $p = Start-Gallery 10
+  Wheel $p -60; Wheel $p 19
+  Snap $p "carousel"
+  # More: pickers
+  $p = Start-Gallery 10
+  Wheel $p -60; Wheel $p 6
+  Snap $p "pickers"
+
+  # Light theme (sun icon at the bottom of the rail)
+  $p = Start-Gallery 0
+  $r = Rect $p
+  Click $p 47 ($r.B - $r.T - 36)
+  Snap $p "buttons-light"
+
+  # Menu with a submenu
+  $p = Start-Gallery 7
+  Click $p 196 270
+  Click $p 230 465
+  Snap $p "menu-submenu"
+
 }
 
-# More: carousel
-$p = Start-Gallery 10
-Wheel $p -60; Wheel $p 19
-Snap $p "carousel"
-# More: pickers
-$p = Start-Gallery 10
-Wheel $p -60; Wheel $p 6
-Snap $p "pickers"
-
-# Light theme (sun icon at the bottom of the rail)
-$p = Start-Gallery 0
-$r = Rect $p
-Click $p 47 ($r.B - $r.T - 36)
-Snap $p "buttons-light"
-
-# Menu with a submenu
-$p = Start-Gallery 7
-Click $p 196 270
-Click $p 230 465
-Snap $p "menu-submenu"
+if (-not $Only -or $Only -eq 'todo') {
+  # ToDo リストの example
+  Get-Process todo -ErrorAction SilentlyContinue | Stop-Process -Force
+  $p = Start-Process -FilePath (Join-Path $root "target/debug/examples/todo.exe") -PassThru
+  Start-Sleep 4
+  $p.Refresh()
+  [Shoot]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
+  Start-Sleep -Milliseconds 600
+  Snap $p "todo"
+  Stop-Process -Id $p.Id -Force
+}
 
 Get-Process gallery -ErrorAction SilentlyContinue | Stop-Process -Force
