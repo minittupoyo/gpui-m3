@@ -8,9 +8,10 @@
 //! SearchView::new("sv", field).on_back(|_, _, cx| ...).child(ListItem::new(..))
 //! ```
 
+use gpui::AnimationExt as _;
 use gpui::{
     AnyElement, App, ClickEvent, Entity, Focusable as _, IntoElement, ParentElement, RenderOnce,
-    SharedString, Window, div, prelude::*, px,
+    SharedString, SpringAnimation, Window, div, prelude::*, px,
 };
 
 use super::{
@@ -115,6 +116,7 @@ pub struct SearchView {
     trailing: Vec<AnyElement>,
     children: Vec<AnyElement>,
     max_height: Option<f32>,
+    height: Option<f32>,
 }
 
 impl SearchView {
@@ -127,7 +129,13 @@ impl SearchView {
             trailing: vec![],
             children: vec![],
             max_height: None,
+            height: None,
         }
+    }
+    /// 高さを固定する（結果リストはその中でスクロール）
+    pub fn height(mut self, h: f32) -> Self {
+        self.height = Some(h);
+        self
     }
     /// ドッキング（角丸 28dp）か、全画面（角丸なし）か
     pub fn docked(mut self, v: bool) -> Self {
@@ -201,6 +209,7 @@ impl RenderOnce for SearchView {
             .flex_col()
             .w_full()
             .when_some(self.max_height, |d, h| d.max_h(px(h)))
+            .when_some(self.height, |d, h| d.h(px(h)))
             .overflow_hidden()
             .bg(c.surface_container_high)
             .map(|d| if self.docked { d.rounded(shape::EXTRA_LARGE) } else { d })
@@ -208,5 +217,160 @@ impl RenderOnce for SearchView {
             .child(header)
             .child(Divider::horizontal())
             .child(results)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Search anchor（バーがフォーカスで検索ビューに展開する）
+// ---------------------------------------------------------------------------
+
+/// 閉じているときは [`SearchBar`]、開くと [`SearchView`] に展開する（高さがバネで変わる）。
+///
+/// 開閉は呼び出し側が持つ（`open` と `on_open_change`）。入力欄がフォーカスされると
+/// `on_open_change(true)`、戻るボタン・Esc で `on_open_change(false)` が呼ばれる。
+/// 結果をクリックして閉じたいときは、ホスト側で `open` を false にする。
+#[derive(IntoElement)]
+pub struct SearchAnchor {
+    id: SharedString,
+    field: Entity<TextField>,
+    open: bool,
+    height: f32,
+    bar_trailing: Vec<AnyElement>,
+    view_trailing: Vec<AnyElement>,
+    children: Vec<AnyElement>,
+    on_open_change: Option<std::rc::Rc<dyn Fn(bool, &mut Window, &mut App)>>,
+}
+
+impl SearchAnchor {
+    pub fn new(id: impl Into<SharedString>, field: Entity<TextField>, open: bool) -> Self {
+        Self {
+            id: id.into(),
+            field,
+            open,
+            height: 360.,
+            bar_trailing: vec![],
+            view_trailing: vec![],
+            children: vec![],
+            on_open_change: None,
+        }
+    }
+    /// 展開したときの高さ
+    pub fn height(mut self, h: f32) -> Self {
+        self.height = h;
+        self
+    }
+    /// 閉じているとき（バー）の末尾アイコン
+    pub fn bar_trailing(mut self, el: impl IntoElement) -> Self {
+        self.bar_trailing.push(el.into_any_element());
+        self
+    }
+    /// 開いているとき（ビュー）の末尾アイコン
+    pub fn view_trailing(mut self, el: impl IntoElement) -> Self {
+        self.view_trailing.push(el.into_any_element());
+        self
+    }
+    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+        self.on_open_change = Some(std::rc::Rc::new(f));
+        self
+    }
+}
+
+impl ParentElement for SearchAnchor {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+struct AnchorState {
+    was_focused: bool,
+    was_open: bool,
+}
+
+impl RenderOnce for SearchAnchor {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.m3().clone();
+        let c = &theme.colors;
+        let open = self.open;
+        let focus = self.field.focus_handle(cx);
+        let focused = focus.is_focused(window);
+        let state = window.use_keyed_state(
+            SharedString::from(format!("{}::anchor", self.id)),
+            cx,
+            |_, _| AnchorState { was_focused: false, was_open: false },
+        );
+        let (was_focused, was_open) = {
+            let s = state.read(cx);
+            (s.was_focused, s.was_open)
+        };
+        state.update(cx, |s, _| {
+            s.was_focused = focused;
+            s.was_open = open;
+        });
+        // 入力欄にフォーカスが入ったら開く
+        if focused && !was_focused && !open {
+            if let Some(h) = self.on_open_change.clone() {
+                window.defer(cx, move |w, cx| h(true, w, cx));
+            }
+        }
+        // 外から開かれたときも入力欄にフォーカスを移す
+        if open && !was_open && !focused {
+            let f = focus.clone();
+            window.defer(cx, move |w, cx| w.focus(&f, cx));
+        }
+
+        let close = {
+            let h = self.on_open_change.clone();
+            move |w: &mut Window, cx: &mut App| {
+                if let Some(h) = &h {
+                    h(false, w, cx);
+                }
+                w.blur(cx);
+            }
+        };
+        let back = close.clone();
+        let height = self.height;
+        let mut view = SearchView::new(format!("{}-view", self.id), self.field.clone())
+            .docked(true)
+            .height(height)
+            .on_back(move |_, w, cx| back(w, cx));
+        for t in self.view_trailing {
+            view = view.trailing(t);
+        }
+        for ch in self.children {
+            view = view.child(ch);
+        }
+        let mut bar = SearchBar::new(format!("{}-bar", self.id), self.field.clone());
+        for t in self.bar_trailing {
+            bar = bar.trailing(t);
+        }
+        let bar = bar.into_any_element();
+        let view = view.into_any_element();
+
+        let esc = close;
+        div()
+            .id(gpui::ElementId::Name(self.id.clone()))
+            .w_full()
+            .overflow_hidden()
+            .rounded(shape::EXTRA_LARGE)
+            .bg(c.surface_container_high)
+            .on_key_down(move |e, w, cx| {
+                if open && e.keystroke.key == "escape" {
+                    cx.stop_propagation();
+                    esc(w, cx);
+                }
+            })
+            .with_spring(
+                gpui::ElementId::Name(format!("{}::expand", self.id).into()),
+                SpringAnimation::new(theme.motion.default_spatial).to(if open { 1. } else { 0. }),
+                move |el, t| {
+                    let h = 56. + (height - 56.) * t.clamp(0., 1.);
+                    // 閉じるアニメーションが終わるまではビューを出し続ける
+                    if open || t > 0.02 {
+                        el.h(px(h)).child(view)
+                    } else {
+                        el.h(px(56.)).child(bar)
+                    }
+                },
+            )
     }
 }

@@ -295,20 +295,6 @@ impl Gallery {
     }
 
     /// 値を受け取って状態を更新するハンドラを作る
-    fn set_click(
-        cx: &mut Context<Self>,
-        f: impl Fn(&mut Self) + 'static,
-    ) -> impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static {
-        let this = cx.entity().downgrade();
-        move |_, _, cx| {
-            this.update(cx, |g, cx| {
-                f(g);
-                cx.notify();
-            })
-            .ok();
-        }
-    }
-
     fn set<V: 'static>(
         cx: &mut Context<Self>,
         f: impl Fn(&mut Self, V) + 'static,
@@ -2278,30 +2264,28 @@ impl Gallery {
             .copied()
             .filter(|w| query.is_empty() || w.to_lowercase().contains(&query.to_lowercase()))
             .collect();
-        let search_body: AnyElement = if self.search_open {
-            let field = self.search_field.clone();
-            let mut view = m3::SearchView::new("sv", self.search_field.clone())
-                .max_height(360.)
-                .on_back(Self::set_click(cx, |g| g.search_open = false));
-            for (i, w) in hits.iter().enumerate() {
-                let f = field.clone();
-                let name = w.to_string();
-                view = view.child(
-                    ListItem::new(format!("sv-{i}"), *w)
-                        .leading(Icon::new(if query.is_empty() { IconName::History } else { IconName::Search }).color(c.on_surface_variant))
-                        .on_click(move |_, _, cx| {
-                            f.update(cx, |f, cx| f.set_text(name.clone(), cx));
-                        }),
-                );
-            }
-            view.into_any_element()
-        } else {
-            m3::SearchBar::new("sb", self.search_field.clone())
-                .trailing(IconButton::new("sb-mic", IconName::Mic))
-                .trailing(IconButton::new("sb-menu", IconName::MoreVert))
-                .into_any_element()
-        };
-        let open_btn = Self::set_click(cx, |g| g.search_open = true);
+        let mut anchor = m3::SearchAnchor::new("sa", self.search_field.clone(), self.search_open)
+            .height(360.)
+            .bar_trailing(IconButton::new("sb-mic", IconName::Mic))
+            .bar_trailing(IconButton::new("sb-menu", IconName::MoreVert))
+            .on_open_change(Self::set(cx, |g, open: bool| g.search_open = open));
+        for (i, w) in hits.iter().enumerate() {
+            let f = self.search_field.clone();
+            let name = w.to_string();
+            let close = Self::set(cx, |g, _: ()| g.search_open = false);
+            anchor = anchor.child(
+                ListItem::new(format!("sv-{i}"), *w)
+                    .leading(
+                        Icon::new(if query.is_empty() { IconName::History } else { IconName::Search })
+                            .color(c.on_surface_variant),
+                    )
+                    .on_click(move |_, w, cx| {
+                        f.update(cx, |f, cx| f.set_text(name.clone(), cx));
+                        close((), w, cx);
+                    }),
+            );
+        }
+        let search_body: AnyElement = anchor.into_any_element();
         let today = m3::Date::new(2026, 11, 14);
         let pickers = div()
             .flex()
@@ -2369,17 +2353,8 @@ impl Gallery {
             section(
                 cx,
                 "Search bar / Search view",
-                "バーをクリックして入力 → フォーカスでビューに展開（ここでは「開く」ボタンで切替）",
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(16.))
-                    .child(search_body)
-                    .child(
-                        Button::new("sv-toggle", if self.search_open { "ビューを開いている" } else { "ビューを開く" })
-                            .tonal()
-                            .on_click(move |e, w, cx| open_btn(e, w, cx)),
-                    ),
+                "バーをクリックして入力 → フォーカスでビューに展開。戻る・Esc・結果の選択で閉じる",
+                div().flex().flex_col().gap(px(16.)).child(search_body),
             )
             .into_any_element(),
         );
