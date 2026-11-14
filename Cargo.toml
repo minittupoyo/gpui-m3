@@ -6,6 +6,7 @@ description = "Material Design 3 (Expressive) components for GPUI"
 authors = ["minittupoyo"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+repository = "https://github.com/minittupoyo/gpui-m3"
 keywords = ["gpui", "material-design", "material3", "ui", "gui"]
 categories = ["gui"]
 # gpui は crates.io に無く git 依存のため、crates.io には公開できない

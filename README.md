@@ -46,7 +46,7 @@ cargo run --example hello     # 最小の使用例
 [dependencies]
 gpui = { git = "https://github.com/zed-industries/zed", branch = "main" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", branch = "main" }
-gpui-m3 = { git = "<このリポジトリの URL>" }
+gpui-m3 = { git = "https://github.com/minittupoyo/gpui-m3" }
 # ローカルで試すなら: gpui-m3 = { path = "../gpui-m3" }
 ```
 
