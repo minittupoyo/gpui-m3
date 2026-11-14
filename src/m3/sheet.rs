@@ -1,7 +1,8 @@
 //! Modal bottom sheet
 //!
 //! 画面ルートの最後の子として常に配置し、`open` で開閉する（閉じるアニメーションのため）。
-//! ドラッグハンドルを下に引っ張ると閉じる。
+//! ドラッグハンドルを下に引っ張ると閉じる。`peek` を指定すると、途中の高さと全体表示の 2 段階になる。
+//! `modal(false)` でスクリムなしの標準（常設）ボトムシートになる。
 
 use std::rc::Rc;
 
@@ -21,6 +22,8 @@ struct SheetState {
     /// 現在のドラッグ量（下方向が正）
     drag: f32,
     height: f32,
+    /// `peek` 指定時: 全体表示中か
+    expanded: bool,
 }
 
 #[derive(IntoElement)]
@@ -29,6 +32,8 @@ pub struct BottomSheet {
     open: bool,
     base: Div,
     max_width: f32,
+    peek: Option<f32>,
+    modal: bool,
     on_dismiss: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
 }
 
@@ -39,11 +44,23 @@ impl BottomSheet {
             open,
             base: div(),
             max_width: 640.,
+            peek: None,
+            modal: true,
             on_dismiss: None,
         }
     }
     pub fn max_width(mut self, w: f32) -> Self {
         self.max_width = w;
+        self
+    }
+    /// 途中の高さ（dp）。指定すると「途中 ↔ 全体」をドラッグ／ハンドルのクリックで切り替えられる
+    pub fn peek(mut self, height: f32) -> Self {
+        self.peek = Some(height);
+        self
+    }
+    /// false で標準（スクリムなし・背面を操作できる）
+    pub fn modal(mut self, v: bool) -> Self {
+        self.modal = v;
         self
     }
     /// スクリムのクリック・下方向ドラッグで呼ばれる
@@ -74,9 +91,16 @@ impl RenderOnce for BottomSheet {
             cx,
             |_, _| SheetState::default(),
         );
-        let (dragging, drag, height) = {
+        let (dragging, drag, height, expanded) = {
             let s = state.read(cx);
-            (s.drag_start.is_some(), s.drag, s.height.max(200.))
+            (s.drag_start.is_some(), s.drag, s.height.max(200.), s.expanded)
+        };
+        let peek = self.peek;
+        let modal = self.modal;
+        // 途中表示のとき、全体表示位置からどれだけ下げるか
+        let base_off = match peek {
+            Some(p) if !expanded => (height - p).max(0.),
+            _ => 0.,
         };
         let open = self.open;
         let on_dismiss = self.on_dismiss.clone();
@@ -133,7 +157,11 @@ impl RenderOnce for BottomSheet {
                     }
                     st.update(cx, |s, cx| {
                         if let Some(start) = s.drag_start {
-                            s.drag = (f32::from(e.position.y) - start).max(-24.);
+                            let floor = match peek {
+                                Some(p) if !s.expanded => -(s.height - p).max(0.) - 24.,
+                                _ => -24.,
+                            };
+                            s.drag = (f32::from(e.position.y) - start).max(floor);
                             cx.notify();
                         }
                     })
@@ -147,7 +175,23 @@ impl RenderOnce for BottomSheet {
                     let mut close = false;
                     st.update(cx, |s, cx| {
                         if s.drag_start.take().is_some() {
-                            close = s.drag > (s.height * 0.3).min(160.);
+                            let thr = (s.height * 0.2).clamp(40., 120.);
+                            match peek {
+                                None => close = s.drag > (s.height * 0.3).min(160.),
+                                Some(_) => {
+                                    if s.drag.abs() < 4. {
+                                        s.expanded = !s.expanded;
+                                    } else if s.drag < -thr {
+                                        s.expanded = true;
+                                    } else if s.drag > thr {
+                                        if s.expanded {
+                                            s.expanded = false;
+                                        } else {
+                                            close = true;
+                                        }
+                                    }
+                                }
+                            }
                             s.drag = 0.;
                             cx.notify();
                         }
@@ -188,7 +232,7 @@ impl RenderOnce for BottomSheet {
         };
         let sheet = sheet.with_spring(
             ElementId::Name(format!("{id}::drag").into()),
-            SpringAnimation::new(drag_spring).to(if open { drag } else { 0. }),
+            SpringAnimation::new(drag_spring).to(if open { base_off + drag } else { 0. }),
             |el, d| el.mb(px(-d.max(-24.))),
         );
 
@@ -202,14 +246,16 @@ impl RenderOnce for BottomSheet {
             .justify_end()
             .items_center()
             .overflow_hidden()
-            .on_click(move |_, w, cx| {
-                if let Some(d) = scrim_dismiss.as_ref() {
-                    d(w, cx);
-                }
+            .when(modal, |d| {
+                d.on_click(move |_, w, cx| {
+                    if let Some(d) = scrim_dismiss.as_ref() {
+                        d(w, cx);
+                    }
+                })
             })
             .child(sheet);
         // 開いている間だけフォーカスを持ち、Esc で閉じる
-        let root = if open {
+        let root = if open && modal {
             let focus = use_popup_focus(&id, window, cx);
             dismiss_on_escape(root, &focus, on_dismiss.clone())
         } else {
@@ -222,8 +268,8 @@ impl RenderOnce for BottomSheet {
                     if !open && t < 0.01 {
                         return el.hidden();
                     }
-                    el.bg(c.scrim.opacity(0.32 * t.clamp(0., 1.)))
-                        .pb(px(-(1. - t) * (height + 40.)))
+                    let el = if modal { el.bg(c.scrim.opacity(0.32 * t.clamp(0., 1.))) } else { el };
+                    el                        .pb(px(-(1. - t) * (height + 40.)))
                 },
             )
     }

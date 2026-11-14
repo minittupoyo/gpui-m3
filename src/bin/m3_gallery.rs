@@ -79,6 +79,7 @@ struct Gallery {
     primary_tab: usize,
     secondary_tab: usize,
     sheet_open: bool,
+    sheet2_open: bool,
     // toolbars
     tb_sel: [usize; 4],
     tb_visible: bool,
@@ -238,6 +239,7 @@ impl Gallery {
             primary_tab: 0,
             secondary_tab: 0,
             sheet_open: false,
+            sheet2_open: false,
             tb_sel: [0, 1, 2, 0],
             tb_visible: true,
             tb_scroll: gpui::ScrollHandle::new(),
@@ -1399,13 +1401,20 @@ impl Gallery {
             section(
                 cx,
                 "Bottom sheet",
-                "スクリム付きのモーダル。ハンドルを下にドラッグ、またはスクリムをクリックで閉じる",
-                div().flex().child(Button::new("open-sheet", "ボトムシートを開く")
-                    .icon(IconName::ArrowDropUp)
-                    .on_click(cx.listener(|g, _, _, cx| {
-                        g.sheet_open = true;
-                        cx.notify();
-                    }))),
+                "モーダル: ハンドルを下にドラッグ、またはスクリムをクリックで閉じる。標準: 途中の高さと全体表示をドラッグ／ハンドルのクリックで切替（下へ引くと閉じる）",
+                wrap_row()
+                    .child(Button::new("open-sheet", "ボトムシートを開く")
+                        .icon(IconName::ArrowDropUp)
+                        .on_click(cx.listener(|g, _, _, cx| {
+                            g.sheet_open = true;
+                            cx.notify();
+                        })))
+                    .child(Button::new("open-sheet2", "標準（途中の高さ付き）")
+                        .tonal()
+                        .on_click(cx.listener(|g, _, _, cx| {
+                            g.sheet2_open = true;
+                            cx.notify();
+                        }))),
             )
             .into_any_element(),
             self.toolbars_section(cx),
@@ -2709,6 +2718,26 @@ impl Render for Gallery {
                 .child(sheet_item("sh-1", IconName::ContentCopy, "リンクをコピー"))
                 .child(sheet_item("sh-2", IconName::Bookmark, "ブックマークに追加"))
                 .child(sheet_item("sh-3", IconName::Share, "その他のアプリ")),
+        );
+        let close_sheet2 = Self::set(cx, |g, _: ()| g.sheet2_open = false);
+        root = root.child(
+            BottomSheet::new("sheet2", self.sheet2_open)
+                .modal(false)
+                .peek(200.)
+                .max_width(520.)
+                .on_dismiss(move |w, cx| close_sheet2((), w, cx))
+                .child(
+                    div()
+                        .px(px(24.))
+                        .pb(px(8.))
+                        .m3_type(TypeScale::TitleLarge)
+                        .child("再生中"),
+                )
+                .child(sheet_item("sp-0", IconName::Favorite, "お気に入りに追加"))
+                .child(sheet_item("sp-1", IconName::Share, "共有"))
+                .child(sheet_item("sp-2", IconName::Mail, "メールで送信"))
+                .child(sheet_item("sp-3", IconName::Bookmark, "プレイリストに追加"))
+                .child(sheet_item("sp-4", IconName::Settings, "設定")),
         );
         root
     }
