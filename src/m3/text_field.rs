@@ -49,6 +49,13 @@ actions!(
         Undo,
         Redo,
         Submit,
+        SubmitForce,
+        Up,
+        Down,
+        SelectUp,
+        SelectDown,
+        DocStart,
+        DocEnd,
     ]
 );
 
@@ -88,6 +95,14 @@ pub(crate) fn bind_text_field_keys(cx: &mut App) {
         KeyBinding::new("shift-home", SelectToHome, c),
         KeyBinding::new("shift-end", SelectToEnd, c),
         KeyBinding::new("enter", Submit, c),
+        KeyBinding::new("shift-enter", Submit, c),
+        KeyBinding::new("ctrl-enter", SubmitForce, c),
+        KeyBinding::new("up", Up, c),
+        KeyBinding::new("down", Down, c),
+        KeyBinding::new("shift-up", SelectUp, c),
+        KeyBinding::new("shift-down", SelectDown, c),
+        KeyBinding::new("ctrl-home", DocStart, c),
+        KeyBinding::new("ctrl-end", DocEnd, c),
         KeyBinding::new(sec!("a"), SelectAll, c),
         KeyBinding::new(sec!("v"), Paste, c),
         KeyBinding::new(sec!("c"), Copy, c),
@@ -120,6 +135,11 @@ pub struct TextField {
     selection_reversed: bool,
     marked_range: Option<Range<usize>>,
     last_layout: Option<ShapedLine>,
+    /// 複数行モードの直近レイアウト（論理行ごと）
+    area_lines: Vec<gpui::WrappedLine>,
+    area_scroll_y: Pixels,
+    area_visual_rows: usize,
+    preferred_x: Option<Pixels>,
     last_bounds: Option<Bounds<Pixels>>,
     scroll_x: Pixels,
     is_selecting: bool,
@@ -141,6 +161,8 @@ pub struct TextField {
     clearable: bool,
     password: bool,
     max_length: Option<usize>,
+    multiline: Option<(usize, Option<usize>)>,
+    bare: bool,
     disabled: bool,
     notch_background: Option<std::rc::Rc<dyn Fn(&super::ColorScheme) -> Hsla>>,
 }
@@ -168,6 +190,10 @@ impl TextField {
             selection_reversed: false,
             marked_range: None,
             last_layout: None,
+            area_lines: vec![],
+            area_scroll_y: px(0.),
+            area_visual_rows: 1,
+            preferred_x: None,
             last_bounds: None,
             scroll_x: px(0.),
             is_selecting: false,
@@ -187,6 +213,8 @@ impl TextField {
             clearable: false,
             password: false,
             max_length: None,
+            multiline: None,
+            bare: false,
             disabled: false,
             notch_background: None,
         }
@@ -235,6 +263,23 @@ impl TextField {
     /// 最大文字数（カウンターも表示）
     pub fn max_length(mut self, n: usize) -> Self {
         self.max_length = Some(n);
+        self
+    }
+    /// 枠・ラベルなしで入力行だけを描画する（Search bar などへの埋め込み用）
+    pub fn bare(mut self) -> Self {
+        self.bare = true;
+        self
+    }
+    /// 複数行入力（折り返しあり）。`min_lines` は最小表示行数
+    pub fn multiline(mut self, min_lines: usize) -> Self {
+        let max = self.multiline.and_then(|m| m.1);
+        self.multiline = Some((min_lines.max(1), max));
+        self
+    }
+    /// 複数行入力の最大表示行数（超えるとスクロール）
+    pub fn max_lines(mut self, n: usize) -> Self {
+        let min = self.multiline.map(|m| m.0).unwrap_or(1);
+        self.multiline = Some((min, Some(n.max(min))));
         self
     }
     pub fn value(mut self, text: impl Into<SharedString>) -> Self {
@@ -354,16 +399,130 @@ impl TextField {
         self.select_to(self.content.len(), window, cx)
     }
     fn home(&mut self, _: &Home, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(0, window, cx);
+        self.move_to(self.home_target(), window, cx);
     }
     fn end(&mut self, _: &End, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(self.content.len(), window, cx);
+        self.move_to(self.end_target(), window, cx);
     }
     fn select_to_home(&mut self, _: &SelectToHome, window: &mut Window, cx: &mut Context<Self>) {
-        self.select_to(0, window, cx);
+        self.select_to(self.home_target(), window, cx);
     }
     fn select_to_end(&mut self, _: &SelectToEnd, window: &mut Window, cx: &mut Context<Self>) {
-        self.select_to(self.content.len(), window, cx);
+        self.select_to(self.end_target(), window, cx);
+    }
+    fn doc_start(&mut self, _: &DocStart, window: &mut Window, cx: &mut Context<Self>) {
+        self.move_to(0, window, cx);
+    }
+    fn doc_end(&mut self, _: &DocEnd, window: &mut Window, cx: &mut Context<Self>) {
+        self.move_to(self.content.len(), window, cx);
+    }
+    fn up(&mut self, _: &Up, window: &mut Window, cx: &mut Context<Self>) {
+        if self.multiline.is_none() {
+            return self.move_to(0, window, cx);
+        }
+        let t = self.vertical_target(-1, window);
+        self.move_to_keep_x(t, window, cx);
+    }
+    fn down(&mut self, _: &Down, window: &mut Window, cx: &mut Context<Self>) {
+        if self.multiline.is_none() {
+            return self.move_to(self.content.len(), window, cx);
+        }
+        let t = self.vertical_target(1, window);
+        self.move_to_keep_x(t, window, cx);
+    }
+    fn select_up(&mut self, _: &SelectUp, window: &mut Window, cx: &mut Context<Self>) {
+        let t = if self.multiline.is_some() { self.vertical_target(-1, window) } else { 0 };
+        let keep = self.preferred_x;
+        self.select_to(t, window, cx);
+        self.preferred_x = keep;
+    }
+    fn select_down(&mut self, _: &SelectDown, window: &mut Window, cx: &mut Context<Self>) {
+        let t = if self.multiline.is_some() {
+            self.vertical_target(1, window)
+        } else {
+            self.content.len()
+        };
+        let keep = self.preferred_x;
+        self.select_to(t, window, cx);
+        self.preferred_x = keep;
+    }
+    fn move_to_keep_x(&mut self, offset: usize, window: &Window, cx: &mut Context<Self>) {
+        let keep = self.preferred_x;
+        self.move_to(offset, window, cx);
+        self.preferred_x = keep;
+    }
+
+    // ----- 複数行ヘルパー -----
+
+    /// 現在の論理行の範囲
+    fn logical_line(&self, offset: usize) -> (usize, usize) {
+        let start = self.content[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let end = self.content[offset..]
+            .find('\n')
+            .map(|i| offset + i)
+            .unwrap_or(self.content.len());
+        (start, end)
+    }
+    fn home_target(&self) -> usize {
+        if self.multiline.is_some() {
+            self.logical_line(self.cursor_offset()).0
+        } else {
+            0
+        }
+    }
+    fn end_target(&self) -> usize {
+        if self.multiline.is_some() {
+            self.logical_line(self.cursor_offset()).1
+        } else {
+            self.content.len()
+        }
+    }
+    /// オフセット → テキスト原点からの相対座標（スクロール前）
+    fn area_point_for_index(&self, offset: usize, lh: Pixels) -> Point<Pixels> {
+        let mut y = px(0.);
+        let mut start = 0;
+        for (i, line) in self.area_lines.iter().enumerate() {
+            let end = start + line.len();
+            let last = i + 1 == self.area_lines.len();
+            if offset <= end || last {
+                let local = offset.saturating_sub(start).min(line.len());
+                let p = line.position_for_index(local, lh).unwrap_or_default();
+                return point(p.x, y + p.y);
+            }
+            y += line.size(lh).height;
+            start = end + 1;
+        }
+        point(px(0.), px(0.))
+    }
+    /// テキスト原点からの相対座標 → オフセット
+    fn area_index_for_point(&self, p: Point<Pixels>, lh: Pixels) -> usize {
+        let mut y = px(0.);
+        let mut start = 0;
+        if p.y < px(0.) {
+            return 0;
+        }
+        for line in self.area_lines.iter() {
+            let h = line.size(lh).height;
+            if p.y < y + h {
+                let local = line
+                    .closest_index_for_position(point(p.x, p.y - y), lh)
+                    .unwrap_or_else(|i| i);
+                return start + local.min(line.len());
+            }
+            y += h;
+            start += line.len() + 1;
+        }
+        self.content.len()
+    }
+    fn vertical_target(&mut self, dir: i32, window: &Window) -> usize {
+        let lh = window.line_height();
+        let cur = self.area_point_for_index(self.cursor_offset(), lh);
+        let x = *self.preferred_x.get_or_insert(cur.x);
+        let ty = cur.y + lh * dir as f32 + lh * 0.5;
+        if ty < px(0.) {
+            return 0;
+        }
+        self.area_index_for_point(point(x, ty), lh)
     }
 
     fn backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
@@ -406,7 +565,9 @@ impl TextField {
 
     fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
-            self.replace_text_in_range(None, &text.replace(['\r', '\n'], " "), window, cx);
+            let text = text.replace("\r\n", "\n").replace('\r', "\n");
+            let text = if self.multiline.is_some() { text } else { text.replace('\n', " ") };
+            self.replace_text_in_range(None, &text, window, cx);
         }
     }
     fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
@@ -455,7 +616,14 @@ impl TextField {
         cx.notify();
     }
 
-    fn submit(&mut self, _: &Submit, _: &mut Window, cx: &mut Context<Self>) {
+    fn submit(&mut self, _: &Submit, window: &mut Window, cx: &mut Context<Self>) {
+        if self.multiline.is_some() {
+            self.replace_text_in_range(None, "\n", window, cx);
+        } else {
+            cx.emit(TextFieldEvent::Submitted(self.content.clone()));
+        }
+    }
+    fn submit_force(&mut self, _: &SubmitForce, _: &mut Window, cx: &mut Context<Self>) {
         cx.emit(TextFieldEvent::Submitted(self.content.clone()));
     }
 
@@ -473,7 +641,8 @@ impl TextField {
         }
         window.focus(&self.focus_handle, cx);
         self.is_selecting = true;
-        let idx = self.index_for_mouse_position(event.position);
+        let idx = self.index_for_mouse_position(event.position, window);
+        self.preferred_x = None;
         match event.click_count {
             2 => {
                 let (s, e) = self.word_range_at(idx);
@@ -493,7 +662,7 @@ impl TextField {
     }
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, window: &mut Window, cx: &mut Context<Self>) {
         if self.is_selecting {
-            self.select_to(self.index_for_mouse_position(event.position), window, cx);
+            self.select_to(self.index_for_mouse_position(event.position, window), window, cx);
         }
     }
 
@@ -512,6 +681,7 @@ impl TextField {
     fn move_to(&mut self, offset: usize, window: &Window, cx: &mut Context<Self>) {
         self.selected_range = offset..offset;
         self.selection_reversed = false;
+        self.preferred_x = None;
         window.notify_text_selection_changed(&self.focus_handle);
         self.start_blink(cx);
         cx.notify()
@@ -535,6 +705,7 @@ impl TextField {
             self.selection_reversed = !self.selection_reversed;
             self.selected_range = self.selected_range.end..self.selected_range.start;
         }
+        self.preferred_x = None;
         window.notify_text_selection_changed(&self.focus_handle);
         self.start_blink(cx);
         cx.notify()
@@ -570,9 +741,19 @@ impl TextField {
         }
     }
 
-    fn index_for_mouse_position(&self, position: Point<Pixels>) -> usize {
+    fn index_for_mouse_position(&self, position: Point<Pixels>, window: &Window) -> usize {
         if self.content.is_empty() {
             return 0;
+        }
+        if self.multiline.is_some() {
+            let Some(bounds) = self.last_bounds.as_ref() else {
+                return 0;
+            };
+            let rel = point(
+                position.x - bounds.left(),
+                position.y - bounds.top() + self.area_scroll_y,
+            );
+            return self.area_index_for_point(rel, window.line_height());
         }
         let (Some(bounds), Some(line)) = (self.last_bounds.as_ref(), self.last_layout.as_ref())
         else {
@@ -680,6 +861,43 @@ impl TextField {
             None => new_text,
         }
     }
+}
+
+impl TextField {
+    fn bind_actions<E: InteractiveElement>(root: E, cx: &mut Context<Self>) -> E {
+        root
+            .on_action(cx.listener(Self::backspace))
+            .on_action(cx.listener(Self::delete))
+            .on_action(cx.listener(Self::delete_word_left))
+            .on_action(cx.listener(Self::delete_word_right))
+            .on_action(cx.listener(Self::left))
+            .on_action(cx.listener(Self::right))
+            .on_action(cx.listener(Self::word_left))
+            .on_action(cx.listener(Self::word_right))
+            .on_action(cx.listener(Self::select_left))
+            .on_action(cx.listener(Self::select_right))
+            .on_action(cx.listener(Self::select_word_left))
+            .on_action(cx.listener(Self::select_word_right))
+            .on_action(cx.listener(Self::select_all))
+            .on_action(cx.listener(Self::home))
+            .on_action(cx.listener(Self::end))
+            .on_action(cx.listener(Self::select_to_home))
+            .on_action(cx.listener(Self::select_to_end))
+            .on_action(cx.listener(Self::paste))
+            .on_action(cx.listener(Self::cut))
+            .on_action(cx.listener(Self::copy))
+            .on_action(cx.listener(Self::undo))
+            .on_action(cx.listener(Self::redo))
+            .on_action(cx.listener(Self::submit))
+            .on_action(cx.listener(Self::submit_force))
+            .on_action(cx.listener(Self::up))
+            .on_action(cx.listener(Self::down))
+            .on_action(cx.listener(Self::select_up))
+            .on_action(cx.listener(Self::select_down))
+            .on_action(cx.listener(Self::doc_start))
+            .on_action(cx.listener(Self::doc_end))
+    }
+
 }
 
 impl EventEmitter<TextFieldEvent> for TextField {}
@@ -830,9 +1048,20 @@ impl EntityInputHandler for TextField {
         &mut self,
         range_utf16: Range<usize>,
         bounds: Bounds<Pixels>,
-        _: &mut Window,
+        window: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
+        if self.multiline.is_some() {
+            let lh = window.line_height();
+            let range = self.range_from_utf16(&range_utf16);
+            let a = self.area_point_for_index(range.start, lh);
+            let b = self.area_point_for_index(range.end, lh);
+            let origin = point(bounds.left(), bounds.top() - self.area_scroll_y);
+            return Some(Bounds::from_corners(
+                point(origin.x + a.x, origin.y + a.y),
+                point(origin.x + b.x, origin.y + b.y + lh),
+            ));
+        }
         let last_layout = self.last_layout.as_ref()?;
         let range = self.range_from_utf16(&range_utf16);
         let left = bounds.left() - self.scroll_x;
@@ -851,9 +1080,13 @@ impl EntityInputHandler for TextField {
     fn character_index_for_point(
         &mut self,
         point: Point<Pixels>,
-        _: &mut Window,
+        window: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<usize> {
+        if self.multiline.is_some() {
+            let idx = self.index_for_mouse_position(point, window);
+            return Some(self.offset_to_utf16(idx));
+        }
         let line_point = self.last_bounds?.localize(&point)?;
         let last_layout = self.last_layout.as_ref()?;
         let idx = self.from_display(last_layout.closest_index_for_x(line_point.x + self.scroll_x));
@@ -1094,6 +1327,278 @@ impl Element for TextLine {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// 複数行テキスト描画エレメント
+// ---------------------------------------------------------------------------
+
+struct TextArea {
+    input: Entity<TextField>,
+    text_color: Hsla,
+    placeholder_color: Hsla,
+    cursor_color: Hsla,
+    selection_color: Hsla,
+    show_placeholder: bool,
+}
+
+struct AreaPrepaint {
+    lines: Vec<gpui::WrappedLine>,
+    placeholder: Option<ShapedLine>,
+    cursor: Option<PaintQuad>,
+    selections: Vec<PaintQuad>,
+    scroll_y: Pixels,
+    rows: usize,
+}
+
+impl TextField {
+    /// 表示行数（min..=max にクランプ）
+    fn area_rows(&self) -> usize {
+        let (min, max) = self.multiline.unwrap_or((1, None));
+        let rows = self.area_visual_rows.max(min);
+        max.map(|m| rows.min(m)).unwrap_or(rows)
+    }
+}
+
+impl Element for TextArea {
+    type RequestLayoutState = ();
+    type PrepaintState = AreaPrepaint;
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&gpui::InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let rows = self.input.read(cx).area_rows();
+        let mut style = Style::default();
+        style.size.width = relative(1.).into();
+        style.size.height = (window.line_height() * rows as f32).into();
+        (window.request_layout(style, [], cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&gpui::InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        let input = self.input.read(cx);
+        let style = window.text_style();
+        let lh = window.line_height();
+        let font_size = style.font_size.to_pixels(window.rem_size());
+        let content_empty = input.content.is_empty();
+        let text: SharedString = input.content.clone();
+        let wrap = (bounds.size.width - px(2.)).max(px(10.));
+
+        let base = TextRun {
+            len: text.len(),
+            font: style.font(),
+            color: self.text_color,
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        let runs = match input.marked_range.as_ref() {
+            Some(m) if !content_empty => vec![
+                TextRun { len: m.start, ..base.clone() },
+                TextRun {
+                    len: m.end - m.start,
+                    underline: Some(UnderlineStyle {
+                        color: Some(base.color),
+                        thickness: px(1.),
+                        wavy: false,
+                    }),
+                    ..base.clone()
+                },
+                TextRun { len: text.len() - m.end, ..base.clone() },
+            ]
+            .into_iter()
+            .filter(|r| r.len > 0)
+            .collect(),
+            _ => vec![base.clone()],
+        };
+        let lines: Vec<gpui::WrappedLine> = window
+            .text_system()
+            .shape_text(text, font_size, &runs, Some(wrap), None)
+            .map(|v| v.into_vec())
+            .unwrap_or_default();
+
+        let placeholder = if content_empty && self.show_placeholder {
+            input.placeholder.clone().map(|ph| {
+                let run = TextRun { len: ph.len(), color: self.placeholder_color, ..base.clone() };
+                window.text_system().shape_line(ph, font_size, &[run], None)
+            })
+        } else {
+            None
+        };
+
+        let rows: usize = lines
+            .iter()
+            .map(|l| l.wrap_boundaries().len() + 1)
+            .sum::<usize>()
+            .max(1);
+        let total_h = lh * rows as f32;
+
+        let cursor_pt = lines_point_for_index(&lines, input.cursor_offset(), lh);
+        let mut scroll = input.area_scroll_y;
+        if cursor_pt.y < scroll {
+            scroll = cursor_pt.y;
+        }
+        if cursor_pt.y + lh > scroll + bounds.size.height {
+            scroll = cursor_pt.y + lh - bounds.size.height;
+        }
+        scroll = scroll.min((total_h - bounds.size.height).max(px(0.))).max(px(0.));
+
+        let origin = point(bounds.left(), bounds.top() - scroll);
+        let mut selections = vec![];
+        let mut cursor = None;
+        if input.selected_range.is_empty() {
+            cursor = Some(fill(
+                Bounds::new(point(origin.x + cursor_pt.x, origin.y + cursor_pt.y), size(px(2.), lh)),
+                self.cursor_color,
+            ));
+        } else {
+            let sel = &input.selected_range;
+            let mut y = px(0.);
+            let mut start = 0usize;
+            for line in &lines {
+                let len = line.len();
+                let (a, b) = (sel.start.max(start), sel.end.min(start + len));
+                if a <= b && sel.start <= start + len && sel.end >= start {
+                    let a_l = a.saturating_sub(start).min(len);
+                    let b_l = b.saturating_sub(start).min(len);
+                    // 改行を含んで選択されている行は末尾に少し余白を足す
+                    let extra = if sel.end > start + len { px(6.) } else { px(0.) };
+                    let p0 = line.position_for_index(a_l, lh).unwrap_or_default();
+                    let p1 = line.position_for_index(b_l, lh).unwrap_or_default();
+                    let r0 = (p0.y / lh) as usize;
+                    let r1 = (p1.y / lh) as usize;
+                    for r in r0..=r1 {
+                        let x0 = if r == r0 { p0.x } else { px(0.) };
+                        let x1 = if r == r1 {
+                            p1.x + if r == line.wrap_boundaries().len() { extra } else { px(0.) }
+                        } else {
+                            wrap
+                        };
+                        if x1 > x0 {
+                            let ry = y + lh * r as f32;
+                            selections.push(fill(
+                                Bounds::from_corners(
+                                    point(origin.x + x0, origin.y + ry),
+                                    point(origin.x + x1, origin.y + ry + lh),
+                                ),
+                                self.selection_color,
+                            ));
+                        }
+                    }
+                }
+                y += line.size(lh).height;
+                start += len + 1;
+            }
+        }
+        AreaPrepaint { lines, placeholder, cursor, selections, scroll_y: scroll, rows }
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&gpui::InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        prepaint: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let (focus_handle, cursor_visible, disabled) = {
+            let i = self.input.read(cx);
+            (i.focus_handle.clone(), i.cursor_visible, i.disabled)
+        };
+        if !disabled {
+            window.handle_input(
+                &focus_handle,
+                ElementInputHandler::new(bounds, self.input.clone()),
+                cx,
+            );
+        }
+        let focused = focus_handle.is_focused(window);
+        let lh = window.line_height();
+        let scroll = prepaint.scroll_y;
+        let mask = Bounds::new(
+            point(bounds.left() - px(2.), bounds.top()),
+            size(bounds.size.width + px(4.), bounds.size.height),
+        );
+        let selections = std::mem::take(&mut prepaint.selections);
+        let cursor = prepaint.cursor.take();
+        window.with_content_mask(Some(ContentMask { bounds: mask }), |window| {
+            for q in selections {
+                window.paint_quad(q);
+            }
+            let mut y = bounds.top() - scroll;
+            for line in &prepaint.lines {
+                line.paint(
+                    point(bounds.left(), y),
+                    lh,
+                    gpui::TextAlign::Left,
+                    None,
+                    window,
+                    cx,
+                )
+                .ok();
+                y += line.size(lh).height;
+            }
+            if let Some(ph) = &prepaint.placeholder {
+                ph.paint(point(bounds.left(), bounds.top()), lh, gpui::TextAlign::Left, None, window, cx)
+                    .ok();
+            }
+            if focused && cursor_visible {
+                if let Some(c) = cursor {
+                    window.paint_quad(c);
+                }
+            }
+        });
+
+        let lines = std::mem::take(&mut prepaint.lines);
+        let rows = prepaint.rows;
+        self.input.update(cx, |input, cx| {
+            input.area_lines = lines;
+            input.area_scroll_y = scroll;
+            input.last_bounds = Some(bounds);
+            if input.area_visual_rows != rows {
+                input.area_visual_rows = rows;
+                cx.notify();
+            }
+        });
+    }
+}
+
+fn lines_point_for_index(lines: &[gpui::WrappedLine], offset: usize, lh: Pixels) -> Point<Pixels> {
+    let mut y = px(0.);
+    let mut start = 0;
+    for (i, line) in lines.iter().enumerate() {
+        let end = start + line.len();
+        let last = i + 1 == lines.len();
+        if offset <= end || last {
+            let local = offset.saturating_sub(start).min(line.len());
+            let p = line.position_for_index(local, lh).unwrap_or_default();
+            return point(p.x, y + p.y);
+        }
+        y += line.size(lh).height;
+        start = end + 1;
+    }
+    point(px(0.), px(0.))
+}
+
 // ---------------------------------------------------------------------------
 // 見た目
 // ---------------------------------------------------------------------------
@@ -1153,6 +1658,36 @@ impl Render for TextField {
             c.surface_container_highest
         };
 
+        if self.bare {
+            let mut el = div()
+                .relative()
+                .h(px(24.))
+                .w_full()
+                .m3_type(TypeScale::BodyLarge)
+                .text_color(text_color)
+                .child(div().absolute().inset_0().child(TextLine {
+                    input: cx.entity(),
+                    text_color,
+                    placeholder_color: c.on_surface_variant,
+                    cursor_color: accent,
+                    selection_color: accent.opacity(0.32),
+                    show_placeholder: true,
+                }));
+            if !disabled {
+                el = el
+                    .cursor(CursorStyle::IBeam)
+                    .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+                    .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+                    .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
+                    .on_mouse_move(cx.listener(Self::on_mouse_move));
+            }
+            return Self::bind_actions(div().key_context(CONTEXT).track_focus(&id), cx)
+                .flex_1()
+                .min_w_0()
+                .child(el)
+                .into_any_element();
+        }
+
         // レイアウト
         let has_label = self.label.is_some();
         let text_left = if self.leading_icon.is_some() { 52. } else { 16. };
@@ -1174,25 +1709,41 @@ impl Render for TextField {
         let text_top = if has_label && !outlined { 24. } else { 16. };
 
         // テキスト行
+        let multiline = self.multiline.is_some();
+        let rows = self.area_rows();
+        let text_h = if multiline { 24. * rows as f32 } else { 24. };
         let line = div()
             .absolute()
             .left(px(text_left))
             .right(px(text_right))
             .top(px(text_top))
-            .h(px(24.))
-            .child(TextLine {
-                input: cx.entity(),
-                text_color,
-                placeholder_color: c.on_surface_variant,
-                cursor_color: accent,
-                selection_color: accent.opacity(0.32),
-                show_placeholder: !has_label || focused,
+            .h(px(text_h))
+            .map(|d| {
+                if multiline {
+                    d.child(TextArea {
+                        input: cx.entity(),
+                        text_color,
+                        placeholder_color: c.on_surface_variant,
+                        cursor_color: accent,
+                        selection_color: accent.opacity(0.32),
+                        show_placeholder: !has_label || focused,
+                    })
+                } else {
+                    d.child(TextLine {
+                        input: cx.entity(),
+                        text_color,
+                        placeholder_color: c.on_surface_variant,
+                        cursor_color: accent,
+                        selection_color: accent.opacity(0.32),
+                        show_placeholder: !has_label || focused,
+                    })
+                }
             });
 
         let mut container = div()
             .id(eid("container"))
             .relative()
-            .h(px(56.))
+            .h(px(if multiline { text_top + text_h + 16. } else { 56. }))
             .w_full()
             .bg(container_bg)
             .text_color(text_color)
@@ -1366,35 +1917,10 @@ impl Render for TextField {
         } else {
             c.on_surface_variant
         };
-        let mut root = div()
-            .key_context(CONTEXT)
-            .track_focus(&id)
+        let mut root = Self::bind_actions(div().key_context(CONTEXT).track_focus(&id), cx)
             .flex()
             .flex_col()
             .w_full()
-            .on_action(cx.listener(Self::backspace))
-            .on_action(cx.listener(Self::delete))
-            .on_action(cx.listener(Self::delete_word_left))
-            .on_action(cx.listener(Self::delete_word_right))
-            .on_action(cx.listener(Self::left))
-            .on_action(cx.listener(Self::right))
-            .on_action(cx.listener(Self::word_left))
-            .on_action(cx.listener(Self::word_right))
-            .on_action(cx.listener(Self::select_left))
-            .on_action(cx.listener(Self::select_right))
-            .on_action(cx.listener(Self::select_word_left))
-            .on_action(cx.listener(Self::select_word_right))
-            .on_action(cx.listener(Self::select_all))
-            .on_action(cx.listener(Self::home))
-            .on_action(cx.listener(Self::end))
-            .on_action(cx.listener(Self::select_to_home))
-            .on_action(cx.listener(Self::select_to_end))
-            .on_action(cx.listener(Self::paste))
-            .on_action(cx.listener(Self::cut))
-            .on_action(cx.listener(Self::copy))
-            .on_action(cx.listener(Self::undo))
-            .on_action(cx.listener(Self::redo))
-            .on_action(cx.listener(Self::submit))
             .child(container);
         if support.is_some() || counter.is_some() {
             root = root.child(
@@ -1409,6 +1935,6 @@ impl Render for TextField {
                     .children(counter),
             );
         }
-        root
+        root.into_any_element()
     }
 }

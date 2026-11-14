@@ -163,6 +163,22 @@ impl Gallery {
                 f.set_disabled(true, cx);
                 f
             }),
+            cx.new(|cx| {
+                TextField::new(window, cx)
+                    .label("メモ（複数行）")
+                    .multiline(3)
+                    .max_lines(6)
+                    .value("1行目
+2行目は少し長めの文章で、幅を超えると折り返して表示されます。日本語の折り返しも確認します。")
+            }),
+            cx.new(|cx| {
+                TextField::new(window, cx)
+                    .outlined()
+                    .notch_background(notch)
+                    .label("コメント")
+                    .placeholder("Ctrl+Enter で送信")
+                    .multiline(2)
+            }),
         ];
         // メール: 入力のたびに検証、Enter で送信
         let email_sub = cx.subscribe(
@@ -229,7 +245,7 @@ impl Gallery {
             side_open: true,
             side_modal_open: false,
             full_open: false,
-            page: 0,
+            page: std::env::var("M3_PAGE").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
             toggles: [false, true, false, true, false],
             favorite: [true, false, true, false],
             clicks: 0,
@@ -2109,7 +2125,8 @@ impl Gallery {
                     .flex_col()
                     .gap(px(16.))
                     .child(col(&f[4], &f[5]))
-                    .child(col(&f[6], &f[7])),
+                    .child(col(&f[6], &f[7]))
+                    .child(col(&f[8], &f[9])),
             )
             .into_any_element(),
             section(
