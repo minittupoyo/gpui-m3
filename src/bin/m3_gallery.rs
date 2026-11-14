@@ -88,6 +88,11 @@ struct Gallery {
     hue: f32,
     variant: usize,
     contrast: usize,
+    // navigation rail
+    rail_expanded: bool,
+    demo_rail_expanded: bool,
+    demo_rail_sel: usize,
+    modal_rail_open: bool,
 }
 
 impl Gallery {
@@ -206,6 +211,10 @@ impl Gallery {
             hue: 200.,
             variant: 0,
             contrast: 0,
+            rail_expanded: false,
+            demo_rail_expanded: true,
+            demo_rail_sel: 0,
+            modal_rail_open: false,
             page: 0,
             toggles: [false, true, false, true, false],
             favorite: [true, false, true, false],
@@ -828,7 +837,7 @@ impl Gallery {
         );
 
         let image = |a: u32, b: u32| {
-            div().h(px(120.)).w_full().bg(linear_gradient(
+            CardMedia::new().h(px(120.)).bg(linear_gradient(
                 135.,
                 linear_color_stop(gpui::rgb(a), 0.),
                 linear_color_stop(gpui::rgb(b), 1.),
@@ -856,7 +865,7 @@ impl Gallery {
                     .elevated()
                     .w(px(240.))
                     .on_click(|_, _, _| {})
-                    .child(image(0x7c4dff, 0x18ffff))
+                    .media(image(0x7c4dff, 0x18ffff))
                     .child(card_body("Elevated", "影付き。ホバーで持ち上がる")),
             )
             .child(
@@ -864,7 +873,7 @@ impl Gallery {
                     .filled()
                     .w(px(240.))
                     .on_click(|_, _, _| {})
-                    .child(image(0xff8a65, 0xffd54f))
+                    .media(image(0xff8a65, 0xffd54f))
                     .child(card_body("Filled", "surface-container-highest")),
             )
             .child(
@@ -872,7 +881,7 @@ impl Gallery {
                     .outlined()
                     .w(px(240.))
                     .on_click(|_, _, _| {})
-                    .child(image(0x26a69a, 0x9ccc65))
+                    .media(image(0x26a69a, 0x9ccc65))
                     .child(card_body("Outlined", "outline-variant の枠線")),
             );
         out.push(section(cx, "Cards", "Elevated / Filled / Outlined", cards).into_any_element());
@@ -1902,6 +1911,100 @@ impl Gallery {
                 .into_any_element(),
         );
 
+        // ----- Navigation rail（展開型 / モーダル展開型）-----
+        let demo_rail = |id: &'static str, sel: usize| {
+            NavigationRail::new(id, sel)
+                .fab(IconName::Edit, "作成", None)
+                .item(NavItem::new(IconName::Home, "ホーム"))
+                .item(NavItem::new(IconName::Search, "検索"))
+                .item(NavItem::new(IconName::Mail, "受信トレイ").badge(Some(12)))
+                .section("ライブラリ")
+                .item(NavItem::new(IconName::Bookmark, "ブックマーク"))
+                .item(NavItem::new(IconName::Star, "お気に入り"))
+        };
+        let toggle_demo = Self::set(cx, |g, _: ()| g.demo_rail_expanded = !g.demo_rail_expanded);
+        let inline_rail = demo_rail("demo-rail", self.demo_rail_sel)
+            .expanded(self.demo_rail_expanded)
+            .on_toggle(move |w, cx| toggle_demo((), w, cx))
+            .on_select(Self::set(cx, |g, i: usize| g.demo_rail_sel = i));
+        let page_names = ["ホーム", "検索", "受信トレイ", "ブックマーク", "お気に入り"];
+        let page_label = |name: &'static str| {
+            div()
+                .flex_1()
+                .h_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_color(c.on_surface_variant)
+                .m3_type(TypeScale::BodyLarge)
+                .child(name)
+        };
+        let inline_frame = div()
+            .relative()
+            .w_full()
+            .h(px(520.))
+            .flex()
+            .rounded(shape::LARGE)
+            .overflow_hidden()
+            .border_1()
+            .border_color(c.outline_variant)
+            .bg(c.surface)
+            .child(inline_rail)
+            .child(page_label(page_names[self.demo_rail_sel]));
+
+        let open_modal = Self::set(cx, |g, _: ()| g.modal_rail_open = true);
+        let close_modal = Self::set(cx, |g, _: ()| g.modal_rail_open = false);
+        let modal_frame = div()
+            .relative()
+            .w_full()
+            .h(px(520.))
+            .rounded(shape::LARGE)
+            .overflow_hidden()
+            .border_1()
+            .border_color(c.outline_variant)
+            .bg(c.surface)
+            .child(
+                div()
+                    .size_full()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(12.))
+                    .child(
+                        div()
+                            .text_color(c.on_surface_variant)
+                            .m3_type(TypeScale::BodyLarge)
+                            .child(page_names[self.demo_rail_sel]),
+                    )
+                    .child(
+                        Button::new("open-modal-rail", "モーダルレールを開く")
+                            .tonal()
+                            .icon(IconName::Menu)
+                            .on_click(move |_, w, cx| open_modal((), w, cx)),
+                    ),
+            )
+            .child(
+                demo_rail("demo-modal-rail", self.demo_rail_sel)
+                    .modal(true)
+                    .expanded(self.modal_rail_open)
+                    .on_dismiss(move |w, cx| close_modal((), w, cx))
+                    .on_select(Self::set(cx, |g, i: usize| g.demo_rail_sel = i)),
+            );
+        out.push(
+            section(
+                cx,
+                "Navigation rail",
+                "左: 展開型（メニューボタンで開閉し、本文を押し出す）。右: モーダル展開型（スクリムの上に重ねて表示）。FAB は展開すると Extended FAB に変わる",
+                div()
+                    .flex()
+                    .gap(px(16.))
+                    .child(div().flex_1().child(inline_frame))
+                    .child(div().flex_1().child(modal_frame)),
+            )
+            .into_any_element(),
+        );
+
         let mut type_scale = div().flex().flex_col().gap(px(4.));
         for t in TypeScale::ALL {
             type_scale = type_scale.child(
@@ -1942,8 +2045,10 @@ impl Render for Gallery {
             _ => self.page_color(cx),
         };
 
+        let toggle_rail = Self::set(cx, |g, _: ()| g.rail_expanded = !g.rail_expanded);
         let mut rail = NavigationRail::new("rail", self.page)
-            .header(IconButton::new("menu", IconName::Menu))
+            .expanded(self.rail_expanded)
+            .on_toggle(move |w, cx| toggle_rail((), w, cx))
             .footer(
                 div()
                     .id("theme-toggle-tt")
